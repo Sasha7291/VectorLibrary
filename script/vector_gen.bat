@@ -1,0 +1,705 @@
+@echo off
+chcp 65001
+setlocal enabledelayedexpansion
+
+set "TAB=	"
+
+for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
+
+call :StartTimer
+
+echo.
+echo %ESC%[36m
+call :RepeatChar "=" 37
+echo %TAB%VECTOR TYPE GENERATOR
+call :RepeatChar "=" 37
+echo %ESC%[0m
+echo.
+
+set "VERSION=1.0.1"
+
+:: Folders
+set "SRC_DIR=../src"
+set "LOG_DIR=../log"
+set "GEN_DIR=%SRC_DIR%/gen"
+set "DOC_DIR=../doc"
+
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+if not exist "%GEN_DIR%" mkdir "%GEN_DIR%"
+if not exist "%DOC_DIR%" mkdir "%DOC_DIR%"
+
+:: Input files
+set "H_FILE=%SRC_DIR%/vector.h"
+
+if not exist "%H_FILE%" call :PrintError "%H_FILE%" not found!
+
+:: Generated files
+set "DECL_H_FILE=%GEN_DIR%/vector_decl.h"
+set "IMPL_C_FILE=%GEN_DIR%/vector_impl.c"
+set "ALIASES_H_FILE=%GEN_DIR%/vector_aliases.h"
+set "TYPES_TXT_FILE=%DOC_DIR%/vector_types.txt"
+set "DEBUG_TXT_FILE=%LOG_DIR%/vector_gen.txt"
+
+if exist "%DEBUG_TXT_FILE%" (
+    del "%DEBUG_TXT_FILE%"
+    type nul< "%DEBUG_TXT_FILE%"
+)
+
+:: Temporary files with unique names
+set "TYPES_TEMP_FILE=%TEMP%\vector_types_%RANDOM%.txt"
+set "PAIRS_TEMP_FILE=%TEMP%\vector_pairs_%RANDOM%.txt"
+
+echo Input files:
+echo %TAB%Types initialization :: %H_FILE%
+echo.
+
+echo Output files:
+echo %TAB%Declaration          :: %DECL_H_FILE%
+echo %TAB%Implimentation       :: %IMPL_C_FILE%
+echo %TAB%Aliases              :: %ALIASES_H_FILE%
+echo %TAB%Documentation        :: %TYPES_TXT_FILE%
+echo %TAB%Debug                :: %DEBUG_TXT_FILE%
+echo.
+
+:: ==================== STAGE 1: COLLECT TYPES ====================
+echo [1/4] Collecting types from "%H_FILE%"...
+
+set COUNT=0
+set MAX_RAW_LEN=0
+
+for /f "usebackq delims=" %%a in ("%H_FILE%") do (
+    set "LINE=%%a"
+    
+    :: Search for initialization macros
+    echo !LINE! | findstr /r "VECTOR_INITIALIZE_[A-Z_]*([^)]*)" >nul
+    if !errorlevel! equ 0 (
+        for /f "tokens=2 delims=()" %%b in ("!LINE!") do (
+            set "RAW_TYPE=%%b"
+            
+            if defined RAW_TYPE (
+                :: Check for duplicates
+                set "DUPLICATE="
+                if exist "%TYPES_TEMP_FILE%" (
+                    for /f "usebackq delims=" %%t in ("%TYPES_TEMP_FILE%") do (
+                        if "%%t"=="!RAW_TYPE!" set DUPLICATE=1
+                    )
+                )
+                
+                if not defined DUPLICATE (
+                    echo !RAW_TYPE! >> "%TYPES_TEMP_FILE%"
+                    set /a COUNT+=1
+                    echo %TAB%[!COUNT!] Found type: !RAW_TYPE!
+					
+                    :: Find maximum length of original type
+                    call :strlen RAW_TYPE RAW_LEN
+                    if !RAW_LEN! gtr !MAX_RAW_LEN! set MAX_RAW_LEN=!RAW_LEN!
+                )
+            )
+        )
+    )
+)
+
+if %COUNT% equ 0 call :PrintError No types found!
+
+echo.
+echo %TAB%Found unique types: %COUNT%
+echo.
+
+:: ==================== STAGE 2: GENERATE ALIASES ====================
+echo [2/4] Generating aliases...
+
+set PAIR_COUNT=0
+set MAX_ALIAS_LEN=0
+set MAX_RAW_LEN=0
+
+:: First pass - find maximum lengths
+if exist "%TYPES_TEMP_FILE%" (
+    for /f "usebackq delims=" %%t in ("%TYPES_TEMP_FILE%") do (
+        set "RAW=%%t"
+        set "ALIAS="
+        
+        if defined RAW (
+            call :generate_alias "!RAW!" ALIAS
+            
+            if defined ALIAS (
+                set "ALIAS_WITH_T=!ALIAS!_t"
+                
+                :: Find max raw length
+                call :strlen RAW RAW_LEN
+                if !RAW_LEN! gtr !MAX_RAW_LEN! set MAX_RAW_LEN=!RAW_LEN!
+                
+                :: Find max alias length
+                call :strlen ALIAS_WITH_T ALIAS_LEN
+                if !ALIAS_LEN! gtr !MAX_ALIAS_LEN! set MAX_ALIAS_LEN=!ALIAS_LEN!
+            )
+        )
+    )
+)
+
+:: Second pass - display with alignment
+set PAIR_COUNT=0
+if exist "%TYPES_TEMP_FILE%" (
+    for /f "usebackq delims=" %%t in ("%TYPES_TEMP_FILE%") do (
+        set "RAW=%%t"
+        set "ALIAS="
+        
+        if defined RAW (
+            call :generate_alias "!RAW!" ALIAS
+            
+            if defined ALIAS (
+                set "ALIAS_WITH_T=!ALIAS!_t"
+                
+                echo !RAW! ^| !ALIAS_WITH_T! >> "%PAIRS_TEMP_FILE%"
+                set /a PAIR_COUNT+=1
+                
+                :: Pad raw string
+                set "RAW_PADDED=!RAW!"
+                call :strlen RAW RAW_LEN
+                set /a PADDING=!MAX_RAW_LEN! - !RAW_LEN!
+                for /l %%p in (1,1,!PADDING!) do set "RAW_PADDED=!RAW_PADDED! "
+                
+                echo %TAB%[!PAIR_COUNT!/!COUNT!] !RAW_PADDED!--^> !ALIAS_WITH_T!
+            )
+        )
+    )
+)
+
+echo.
+echo %TAB%Generated aliases: %PAIR_COUNT%
+echo.
+
+:: ==================== STAGE 3: GENERATE FILES ====================
+echo [3/4] Generating files...
+
+:: 3.1 Generate vector_aliases.h
+echo %TAB%[1/4] vector_aliases.h
+
+(
+    echo /**
+    echo  * @file		vector_aliases.h
+    echo  * @brief     	Intermediate typedefs for vector types
+    echo  * @author    	Generated by vector_gen.bat
+	echo  *
+    echo  * @date      	%DATE% %TIME%
+    echo  * @version   	%VERSION%
+    echo  *
+    echo  * @details   	This file provides typedefs that map original C types
+    echo  *            	to simplified type names used by the vector library.
+    echo  *            	These typedefs are used as T parameters when including
+    echo  *            	vector_template.h and vector_template.c.
+    echo  *
+    echo  * @note      	This file is automatically generated.
+    echo  * @warning   	DO NOT EDIT THIS FILE MANUALLY.
+    echo  *            	Any manual changes will be lost on regeneration.
+    echo  *
+    echo  * @see       	vector_template.h
+    echo  * @see       	vector_decl.h
+    echo  * @see       	vector_impl.c
+    echo  */
+    echo.
+    echo #ifndef __VECTOR_ALIASES_H__
+    echo #define __VECTOR_ALIASES_H__
+    echo.
+) > "%ALIASES_H_FILE%"
+
+for /f "usebackq tokens=1,2 delims=|" %%a in ("%PAIRS_TEMP_FILE%") do (
+    for /f "tokens=*" %%r in ("%%a") do (
+        for /f "tokens=*" %%c in ("%%b") do (
+            (
+                echo /* Type: %%r */
+                echo typedef %%r %%c;
+                echo.
+            ) >> "%ALIASES_H_FILE%"
+        )
+    )
+)
+
+echo #endif // __VECTOR_ALIASES_H__ >> "%ALIASES_H_FILE%"
+
+:: 3.2 Generate vector_decl.h
+echo %TAB%[2/4] vector_decl.h
+
+(
+	echo /**
+    echo  * @file      	vector_decl.h
+    echo  * @brief     	Vector declaration
+    echo  *				This file contains the declarations of all vector operations
+    echo  * 			for each type defined in the system.
+	echo  * @author    	Generated by vector_gen.bat
+    echo  *
+    echo  * @date      	%DATE% %TIME%
+    echo  * @version   	%VERSION%
+    echo  *
+    echo  * @details   	Declaration for %PAIR_COUNT% vector types:
+    echo  *            	- Memory management ^(create/destroy^)
+    echo  *            	- Element access ^(at, front, back^)
+    echo  *            	- Modifiers ^(push, pop, insert, erase^)
+    echo  *            	- Capacity operations ^(reserve, resize^)
+    echo  *            	- Iterators ^(begin, end^)
+    echo  *
+    echo  * @note      	This file is automatically generated
+    echo  * @warning   	DO NOT EDIT THIS FILE MANUALLY.
+    echo  *            	Any manual changes will be lost on regeneration.
+    echo  *
+    echo  * @see       	vector_template.h
+    echo  * @see       	vector_aliases.h
+    echo  */
+    echo.
+    echo #ifndef __VECTOR_DECL_H__
+    echo #define __VECTOR_DECL_H__
+    echo.
+    echo #include "vector_aliases.h"
+    echo.
+    echo #ifdef T
+    echo #define _OLD_T T
+    echo #undef T
+    echo #endif
+    echo.
+) > "%DECL_H_FILE%"
+
+for /f "usebackq tokens=1,2 delims=|" %%a in ("%PAIRS_TEMP_FILE%") do (
+    for /f "tokens=*" %%r in ("%%a") do (
+            for /f "tokens=*" %%c in ("%%b") do (
+            (
+                echo /* Type: %%r -^> %%c */
+                echo #define T %%c
+                echo #include "vector_template.h"
+                echo #undef T
+                echo.
+            ) >> "%DECL_H_FILE%"
+        )
+    )
+)
+
+(
+    echo #ifdef _OLD_T
+    echo #define T _OLD_T
+    echo #undef _OLD_T
+    echo #endif
+    echo.
+    echo #endif // __VECTOR_DECL_H__
+) >> "%DECL_H_FILE%"
+
+:: 3.3 Generate vector_impl.c
+echo %TAB%[3/4] vector_impl.c
+
+(
+    echo /**
+    echo  * @file      	vector_impl.c
+    echo  * @brief     	Vector implementations
+	echo  * 			This file contains the implementations of all vector operations
+    echo  * 			for each type defined in the system.
+	echo  * @author    	Generated by vector_gen.bat
+    echo  *
+    echo  * @date      	%DATE% %TIME%
+    echo  * @version   	%VERSION%
+    echo  *
+    echo  * @details   	Implementations for %PAIR_COUNT% vector types:
+    echo  *            	- Memory management ^(create/destroy^)
+    echo  *            	- Element access ^(at, front, back^)
+    echo  *            	- Modifiers ^(push, pop, insert, erase^)
+    echo  *            	- Capacity operations ^(reserve, resize^)
+    echo  *            	- Iterators ^(begin, end^)
+    echo  *
+    echo  * @note      	This file is automatically generated
+    echo  * @warning   	DO NOT EDIT THIS FILE MANUALLY.
+    echo  *            	Any manual changes will be lost on regeneration.
+    echo  *
+    echo  * @see       	vector_template.c
+    echo  * @see       	vector_decl.h
+    echo  */
+    echo.
+    echo #include "vector_decl.h"
+    echo.
+    echo #ifdef T
+    echo #define _OLD_T T
+    echo #undef T
+    echo #endif
+    echo.
+) > "%IMPL_C_FILE%"
+
+for /f "usebackq tokens=1,2 delims=|" %%a in ("%PAIRS_TEMP_FILE%") do (
+    for /f "tokens=*" %%r in ("%%a") do (
+        for /f "tokens=*" %%c in ("%%b") do (
+            (
+                echo /* Type: %%r -^> %%c */
+                echo #define T %%c
+                echo #include "vector_template.c"
+                echo #undef T
+                echo.
+            ) >> "%IMPL_C_FILE%"
+        )
+    )
+)
+
+(
+    echo #ifdef _OLD_T
+    echo #define T _OLD_T
+    echo #undef _OLD_T
+    echo #endif
+) >> "%IMPL_C_FILE%"
+
+:: 3.4 Generate documentation
+echo %TAB%[4/4] vector_types.txt
+
+:: Add padding for better appearance
+set /a MAX_RAW_LEN+=1
+set /a MAX_ALIAS_LEN+=1
+
+:: Create header with proper alignment
+set "HEADER=Original type"
+call :strlen HEADER HEADER_LEN
+
+:: Create string with spaces of required length
+if !HEADER_LEN! gtr !MAX_RAW_LEN! (
+    set "MAX_RAW_LEN=!HEADER_LEN!"
+) else (
+    set /a PAD_COUNT=!MAX_RAW_LEN! - !HEADER_LEN!
+    set "PADDING="
+    for /l %%i in (1,1,!PAD_COUNT!) do set "PADDING=!PADDING! "
+)
+
+:: Add spaces to header
+set "HEADER=!HEADER!!PADDING!"
+
+:: Add separator and second header
+set "HEADER=!HEADER! | Alias"
+
+:: Create separator
+set "SEP_RAW="
+for /l %%i in (1,1,!MAX_RAW_LEN!) do set "SEP_RAW=!SEP_RAW!-"
+set "SEP_ALIAS="
+for /l %%i in (1,1,!MAX_ALIAS_LEN!) do set "SEP_ALIAS=!SEP_ALIAS!-"
+set "SEPARATOR=!SEP_RAW!-+-!SEP_ALIAS!"
+
+(
+    echo.
+    call :RepeatChar "=" 20
+    echo %TAB%VECTOR TYPES
+    call :RepeatChar "=" 20
+    echo.
+    echo Total types: %PAIR_COUNT%
+    echo.
+    echo !HEADER!
+    echo !SEPARATOR!
+) > "%TYPES_TXT_FILE%"
+
+:: Generate data rows
+for /f "usebackq tokens=1,2 delims=|" %%a in ("%PAIRS_TEMP_FILE%") do (
+    set "RAW=%%a"
+    set "ALIAS=%%b"
+    
+    :: Remove leading/trailing spaces
+    for /f "tokens=*" %%r in ("!RAW!") do set "RAW=%%r"
+    for /f "tokens=*" %%a in ("!ALIAS!") do set "ALIAS=%%a"
+    
+    :: Align original type
+    set "RAW_PADDED=!RAW!"
+    call :strlen RAW RAW_LEN
+    set /a PADDING=!MAX_RAW_LEN! - !RAW_LEN!
+    for /l %%p in (1,1,!PADDING!) do set "RAW_PADDED=!RAW_PADDED! "
+    
+    :: Align alias
+    set "ALIAS_PADDED=!ALIAS!"
+    call :strlen ALIAS ALIAS_LEN
+    set /a PADDING=!MAX_ALIAS_LEN! - !ALIAS_LEN!
+    for /l %%p in (1,1,!PADDING!) do set "ALIAS_PADDED=!ALIAS_PADDED! "
+    
+    echo !RAW_PADDED! ^| !ALIAS_PADDED! >> "%TYPES_TXT_FILE%"
+)
+echo.
+
+:: ==================== STAGE 4: CLEAR TEMP ====================
+echo [4/4] Clear temps...
+del "%TYPES_TEMP_FILE%"
+del "%PAIRS_TEMP_FILE%"
+
+call :StopTimer
+
+echo.
+echo %ESC%[36m
+call :RepeatChar "=" 37
+echo %TAB%Done!
+echo %TAB%Spent time: %Timer%
+call :RepeatChar "=" 37
+echo %ESC%[0m
+echo.
+
+pause
+exit /b 0
+
+:: ==================== STRING LENGTH PROCEDURE ====================
+:strlen
+set "s=!%~1!"
+set len=0
+:strlen_loop
+if not "!s!"=="" (
+    set "s=!s:~1!"
+    set /a len+=1
+    goto strlen_loop
+)
+set "%~2=%len%"
+goto :eof
+
+:: ==================== ALIAS GENERATION PROCEDURE ====================
+:generate_alias
+if "%~1"=="" (
+    endlocal & set "%2="
+    goto :eof
+)
+
+set "input=%~1"
+set "output="
+set "original=!input!"
+
+:: ===== 1. Separate type name from pointers =====
+set "type_part="
+set "temp=!input!"
+set "ptr_count=0"
+
+:parse_type
+if "!temp!"=="" goto end_parse
+
+set "first_char=!temp:~0,1!"
+
+if "!first_char!"=="*" (
+    set /a ptr_count+=1
+    set "temp=!temp:~1!"
+    goto parse_type
+) else if "!first_char!"==" " (
+    set "temp=!temp:~1!"
+    goto parse_type
+) else (
+    set "type_part=!temp!"
+    goto end_parse
+)
+
+:end_parse
+
+:: Check for remaining * at the end of type_part
+if defined type_part (
+    set "temp_check=!type_part!"
+    set "new_type_part="
+    
+    :scan_for_stars
+    if "!temp_check!"=="" goto done_scan
+    
+    set "char=!temp_check:~0,1!"
+    if "!char!"=="*" (
+        set /a ptr_count+=1
+    ) else (
+        set "new_type_part=!new_type_part!!char!"
+    )
+    set "temp_check=!temp_check:~1!"
+    goto scan_for_stars
+    
+    :done_scan
+    set "type_part=!new_type_part!"
+)
+
+:: Remove leading/trailing spaces
+if defined type_part (
+    for /f "tokens=* delims= " %%a in ("!type_part!") do set "type_part=%%a"
+    for /f "tokens=* delims= " %%a in ("!type_part!") do set "type_part=%%a"
+)
+
+:: Debug
+echo [1] type_part="!type_part!" ptr_count=!ptr_count! >> "%DEBUG_TXT_FILE%"
+
+:: ===== 2. Remove all * from type_part =====
+if defined type_part (
+    set "clean_type_part="
+    set "temp=!type_part!"
+    
+    :remove_stars
+    if "!temp!"=="" goto done_remove
+    
+    set "first=!temp:~0,1!"
+    if not "!first!"=="*" (
+        set "clean_type_part=!clean_type_part!!first!"
+    )
+    set "temp=!temp:~1!"
+    goto remove_stars
+    
+    :done_remove
+    set "type_part=!clean_type_part!"
+)
+
+echo [2] after remove stars="!type_part!" >> "%DEBUG_TXT_FILE%"
+
+:: ===== 3. Parse type qualifiers =====
+set "has_unsigned=0"
+set "has_signed=0"
+set "has_short=0"
+set "has_long=0"
+set "has_longlong=0"
+set "has_struct=0"
+
+:: Save original for processing
+set "working=!type_part!"
+echo [3] working start="!working!" >> "%DEBUG_TXT_FILE%"
+set "remaining=!working!"
+
+:: Check for struct
+if not "!remaining:struct=!"=="!remaining!" (
+    set "has_struct=1"
+    set "remaining=!remaining:struct=!"
+    echo [3a] after struct="!remaining!" >> "%DEBUG_TXT_FILE%"
+)
+
+:: IMPORTANT: check long long first
+if not "!remaining:long long=!"=="!remaining!" (
+    set "has_longlong=1"
+    set "remaining=!remaining:long long=!"
+    echo [3b] after long long="!remaining!" >> "%DEBUG_TXT_FILE%"
+) else if not "!remaining:long=!"=="!remaining!" (
+    set "has_long=1"
+    set "remaining=!remaining:long=!"
+    echo [3c] after long="!remaining!" >> "%DEBUG_TXT_FILE%"
+)
+
+:: Check for short
+if not "!remaining:short=!"=="!remaining!" (
+    set "has_short=1"
+    set "remaining=!remaining:short=!"
+    echo [3d] after short="!remaining!" >> "%DEBUG_TXT_FILE%"
+)
+
+:: Check for unsigned
+if not "!remaining:unsigned=!"=="!remaining!" (
+    set "has_unsigned=1"
+    set "remaining=!remaining:unsigned=!"
+    echo [3e] after unsigned="!remaining!" >> "%DEBUG_TXT_FILE%"
+)
+
+:: Check for signed
+if not "!remaining:signed=!"=="!remaining!" (
+    set "has_signed=1"
+    set "remaining=!remaining:signed=!"
+    echo [3f] after signed="!remaining!" >> "%DEBUG_TXT_FILE%"
+)
+
+:: Remove all remaining spaces
+set "remaining=!remaining: =!"
+echo [4] remaining after all="!remaining!" >> "%DEBUG_TXT_FILE%"
+
+:: ===== 4. Determine type name =====
+set "type_name="
+
+if defined remaining (
+    :: If something remains after removing qualifiers
+    set "type_name=!remaining!"
+    echo [5a] using remaining="!type_name!" >> "%DEBUG_TXT_FILE%"
+) else (
+    :: If nothing remains, check what was removed
+    echo [5b] empty - checking what was removed >> "%DEBUG_TXT_FILE%"
+    
+    :: If long long or long were present, type name is not needed
+    if !has_longlong! equ 1 (
+        set "type_name="
+        echo [5c] longlong - no type name >> "%DEBUG_TXT_FILE%"
+    ) else if !has_long! equ 1 (
+        set "type_name="
+        echo [5d] long - no type name >> "%DEBUG_TXT_FILE%"
+    ) else if !has_short! equ 1 (
+        set "type_name=short"
+        echo [5e] short - use short >> "%DEBUG_TXT_FILE%"
+    ) else if !has_unsigned! equ 1 (
+        set "type_name=int"
+        echo [5f] unsigned - use int >> "%DEBUG_TXT_FILE%"
+    ) else if !has_signed! equ 1 (
+        set "type_name=int"
+        echo [5g] signed - use int >> "%DEBUG_TXT_FILE%"
+    ) else if !has_struct! equ 1 (
+        set "type_name=struct"
+        echo [5h] struct - use struct >> "%DEBUG_TXT_FILE%"
+    )
+)
+
+if not defined type_name set "type_name="
+echo [6] type_name="!type_name!" >> "%DEBUG_TXT_FILE%"
+
+:: ===== 5. Build base name =====
+set "basename="
+echo [7] flags: u=!has_unsigned! s=!has_signed! sh=!has_short! l=!has_long! ll=!has_longlong! st=!has_struct! >> "%DEBUG_TXT_FILE%"
+
+:: Prefixes in correct order
+if !has_unsigned! equ 1 set "basename=u!basename!"
+if !has_signed! equ 1 set "basename=s!basename!"
+if !has_short! equ 1 set "basename=short_!basename!"
+if !has_long! equ 1 set "basename=l!basename!"
+if !has_longlong! equ 1 set "basename=ll!basename!"
+
+echo [8] basename after prefixes="!basename!" >> "%DEBUG_TXT_FILE%"
+
+:: Type name (only if present)
+if defined type_name (
+    set "basename=!basename!!type_name!"
+    echo [9a] basename after type="!basename!" >> "%DEBUG_TXT_FILE%"
+) else (
+    echo [9b] no type name, basename="!basename!" >> "%DEBUG_TXT_FILE%"
+)
+
+:: ===== 6. Add _ptr for pointers =====
+set "output=!basename!"
+echo [10] before ptr: output="!output!" ptr_count=!ptr_count! >> "%DEBUG_TXT_FILE%"
+
+if !ptr_count! gtr 0 (
+    echo [10a] Adding _ptr !ptr_count! times >> "%DEBUG_TXT_FILE%"
+    for /l %%p in (1,1,!ptr_count!) do (
+        set "output=!output!_ptr"
+        echo [10b] after adding ptr %%p: "!output!" >> "%DEBUG_TXT_FILE%"
+    )
+) else (
+    echo [10c] No pointers to add >> "%DEBUG_TXT_FILE%"
+)
+
+echo [11] output after ptr="!output!" >> "%DEBUG_TXT_FILE%"
+
+:: Remove double underscores
+set "output=!output:__=_!"
+echo [12] final output="!output!" >> "%DEBUG_TXT_FILE%"
+
+:: Debug
+echo [!original!] --^> [!output!] >> "%DEBUG_TXT_FILE%"
+
+endlocal & set "%2=%output%"
+goto :eof
+
+:PrintError
+echo.
+echo %ESC%[31m[ERROR] %~1%ESC%[0m
+pause
+exit /b %~2
+
+:StartTimer
+set "StartTime=%time%"
+set "StartTimeSec=%time:~6,2%"
+set "StartTimeMin=%time:~3,2%"
+set "StartTimeHour=%time:~0,2%"
+exit /b
+
+:StopTimer
+set "EndTime=%time%"
+set "EndTimeSec=%time:~6,2%"
+set "EndTimeMin=%time:~3,2%"
+set "EndTimeHour=%time:~0,2%"
+set /a "DiffSec=%EndTimeSec%-%StartTimeSec%"
+set /a "DiffMin=%EndTimeMin%-%StartTimeMin%"
+set /a "DiffHour=%EndTimeHour%-%StartTimeHour%"
+if %DiffSec% lss 0 (
+    set /a "DiffSec+=60"
+    set /a "DiffMin-=1"
+)
+if %DiffMin% lss 0 (
+    set /a "DiffMin+=60"
+    set /a "DiffHour-=1"
+)
+set "Timer=%DiffHour%:%DiffMin%:%DiffSec%"
+exit /b
+
+:RepeatChar
+set "result="
+for /l %%i in (1,1,%~2) do set "result=!result!%~1"
+echo !result!
+exit /b
