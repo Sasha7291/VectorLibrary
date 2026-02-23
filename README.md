@@ -130,7 +130,7 @@ chmod +x script/vector_gen.sh
 
 ### Library usage examples:
 
-#### With VECTOR_LITE=OFF
+1. With VECTOR_LITE=OFF
 
 ```c
 #include "vector.h"
@@ -159,7 +159,7 @@ int main() {
 }
 ```
 
-#### With VECTOR_LITE=ON
+2. With VECTOR_LITE=ON
 
 ```c
 #include "vector.h"
