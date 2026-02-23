@@ -1,59 +1,93 @@
 @echo off
-chcp 65001
+chcp 65001 >nul
 setlocal enabledelayedexpansion
-
-set "TAB=	"
 
 for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
 
-call :StartTimer
+:: Colors
+set "CYAN=%ESC%[36m"
+set "RED=%ESC%[31m"
+set "RESET=%ESC%[0m"
+set "BOLD=%ESC%[1m"
+
+set "TAB=	"
 
 echo.
-echo %ESC%[36m
+echo %CYAN%
 call :RepeatChar "=" 37
 echo %TAB%VECTOR TYPE GENERATOR
 call :RepeatChar "=" 37
-echo %ESC%[0m
+echo %RESET%
 echo.
 
-set "VERSION=1.0.1"
+:: Directories
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"  :: Убираем последний слеш
+set "PROJECT_ROOT=%SCRIPT_DIR%\.."
+for %%i in ("%PROJECT_ROOT%") do set "PROJECT_ROOT=%%~fi"
+if "%TEMP%"=="" (
+    if not "%USERPROFILE%"=="" (
+        set "TEMP=%USERPROFILE%\AppData\Local\Temp"
+    ) else (
+        set "TEMP=C:\Windows\Temp"
+    )
+)
 
-:: Folders
-set "SRC_DIR=../src"
-set "LOG_DIR=../log"
-set "GEN_DIR=%SRC_DIR%/gen"
-set "DOC_DIR=../doc"
+set "SRC_DIR=%PROJECT_ROOT%\src"
+set "LOG_DIR=%SRC_DIR%\log"
+set "GEN_DIR=%SRC_DIR%\gen"
+set "DOC_DIR=%PROJECT_ROOT%\doc"
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 if not exist "%GEN_DIR%" mkdir "%GEN_DIR%"
 if not exist "%DOC_DIR%" mkdir "%DOC_DIR%"
 
+echo %BOLD%Directories:%RESET%
+echo %TAB%LOG_DIR: %LOG_DIR%
+echo %TAB%GEN_DIR: %GEN_DIR%
+echo %TAB%DOC_DIR: %DOC_DIR%
+echo.
+
 :: Input files
-set "H_FILE=%SRC_DIR%/vector.h"
+set "H_FILE=%SRC_DIR%\vector.h"
 
-if not exist "%H_FILE%" call :PrintError "%H_FILE%" not found!
-
-:: Generated files
-set "DECL_H_FILE=%GEN_DIR%/vector_decl.h"
-set "IMPL_C_FILE=%GEN_DIR%/vector_impl.c"
-set "ALIASES_H_FILE=%GEN_DIR%/vector_aliases.h"
-set "TYPES_TXT_FILE=%DOC_DIR%/vector_types.txt"
-set "DEBUG_TXT_FILE=%LOG_DIR%/vector_gen.txt"
-
-if exist "%DEBUG_TXT_FILE%" (
-    del "%DEBUG_TXT_FILE%"
-    type nul< "%DEBUG_TXT_FILE%"
+if not exist "%H_FILE%" (
+    echo %RED%[ERROR] %H_FILE% not found!%RESET%
+    echo %TAB%Current directory: %CD%
+    echo %TAB%Script directory: %SCRIPT_DIR%
+    echo %TAB%Project root: %PROJECT_ROOT%
+    pause
+    exit /b 1
 )
 
-:: Temporary files with unique names
-set "TYPES_TEMP_FILE=%TEMP%\vector_types_%RANDOM%.txt"
-set "PAIRS_TEMP_FILE=%TEMP%\vector_pairs_%RANDOM%.txt"
+:: Generated files
+set "DECL_H_FILE=%GEN_DIR%\vector_decl.h"
+set "IMPL_C_FILE=%GEN_DIR%\vector_impl.c"
+set "ALIASES_H_FILE=%GEN_DIR%\vector_aliases.h"
+set "TYPES_TXT_FILE=%DOC_DIR%\vector_types.txt"
+set "DEBUG_TXT_FILE=%LOG_DIR%\vector_gen.txt"
 
-echo Input files:
+echo %BOLD%Input files:%RESET%
 echo %TAB%Types initialization :: %H_FILE%
 echo.
 
-echo Output files:
+echo %BOLD%Output files:%RESET%
+echo %TAB%Declaration          :: %DECL_H_FILE%
+echo %TAB%Implementation       :: %IMPL_C_FILE%
+echo %TAB%Aliases              :: %ALIASES_H_FILE%
+echo %TAB%Documentation        :: %TYPES_TXT_FILE%
+echo %TAB%Debug                :: %DEBUG_TXT_FILE%
+echo.
+
+:: Temporary files
+set "TYPES_TEMP_FILE=%TEMP%\vector_types_%RANDOM%.txt"
+set "PAIRS_TEMP_FILE=%TEMP%\vector_pairs_%RANDOM%.txt"
+
+echo %BOLD%Input files:%RESET%
+echo %TAB%Types initialization :: %H_FILE%
+echo.
+
+echo %BOLD%Output files:%RESET%
 echo %TAB%Declaration          :: %DECL_H_FILE%
 echo %TAB%Implimentation       :: %IMPL_C_FILE%
 echo %TAB%Aliases              :: %ALIASES_H_FILE%
@@ -62,7 +96,7 @@ echo %TAB%Debug                :: %DEBUG_TXT_FILE%
 echo.
 
 :: ==================== STAGE 1: COLLECT TYPES ====================
-echo [1/4] Collecting types from "%H_FILE%"...
+echo %BOLD%[1/4] Collecting types from "%H_FILE%"...%RESET%
 
 set COUNT=0
 set MAX_RAW_LEN=0
@@ -106,7 +140,7 @@ echo %TAB%Found unique types: %COUNT%
 echo.
 
 :: ==================== STAGE 2: GENERATE ALIASES ====================
-echo [2/4] Generating aliases...
+echo %BOLD%[2/4] Generating aliases...%RESET%
 
 set PAIR_COUNT=0
 set MAX_ALIAS_LEN=0
@@ -169,7 +203,7 @@ echo %TAB%Generated aliases: %PAIR_COUNT%
 echo.
 
 :: ==================== STAGE 3: GENERATE FILES ====================
-echo [3/4] Generating files...
+echo %BOLD%[3/4] Generating files...%RESET%
 
 :: 3.1 Generate vector_aliases.h
 echo %TAB%[1/4] vector_aliases.h
@@ -410,19 +444,16 @@ for /f "usebackq tokens=1,2 delims=|" %%a in ("%PAIRS_TEMP_FILE%") do (
 echo.
 
 :: ==================== STAGE 4: CLEAR TEMP ====================
-echo [4/4] Clear temps...
+echo %BOLD%[4/4] Clear temps...%RESET%
 del "%TYPES_TEMP_FILE%"
 del "%PAIRS_TEMP_FILE%"
 
-call :StopTimer
-
 echo.
-echo %ESC%[36m
+echo %CYAN%
 call :RepeatChar "=" 37
-echo %TAB%Done!
-echo %TAB%Spent time: %Timer%
+echo %TAB%%TAB%DONE.
 call :RepeatChar "=" 37
-echo %ESC%[0m
+echo %RESET%
 echo.
 
 pause
@@ -668,35 +699,9 @@ goto :eof
 
 :PrintError
 echo.
-echo %ESC%[31m[ERROR] %~1%ESC%[0m
+echo %RED%[ERROR] %~1%RESET%
 pause
 exit /b %~2
-
-:StartTimer
-set "StartTime=%time%"
-set "StartTimeSec=%time:~6,2%"
-set "StartTimeMin=%time:~3,2%"
-set "StartTimeHour=%time:~0,2%"
-exit /b
-
-:StopTimer
-set "EndTime=%time%"
-set "EndTimeSec=%time:~6,2%"
-set "EndTimeMin=%time:~3,2%"
-set "EndTimeHour=%time:~0,2%"
-set /a "DiffSec=%EndTimeSec%-%StartTimeSec%"
-set /a "DiffMin=%EndTimeMin%-%StartTimeMin%"
-set /a "DiffHour=%EndTimeHour%-%StartTimeHour%"
-if %DiffSec% lss 0 (
-    set /a "DiffSec+=60"
-    set /a "DiffMin-=1"
-)
-if %DiffMin% lss 0 (
-    set /a "DiffMin+=60"
-    set /a "DiffHour-=1"
-)
-set "Timer=%DiffHour%:%DiffMin%:%DiffSec%"
-exit /b
 
 :RepeatChar
 set "result="

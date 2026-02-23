@@ -22,7 +22,6 @@
 
 VECTOR_INITIALIZE_TYPE(int)
 VECTOR_INITIALIZE_TYPE(char)
-VECTOR_INITIALIZE_TYPE(float)
 
 
 #include "vector_decl.h"

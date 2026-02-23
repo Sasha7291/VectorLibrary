@@ -34,7 +34,7 @@
 #endif // VECTOR
 
 #ifndef VECTOR_FUNC
-#define VECTOR_FUNC(_name) 		TEMPLATE(_name, T)
+#define VECTOR_FUNC(_name) 		TEMPLATE(vector, TEMPLATE(_name, T))
 #endif // VECTOR_FUNC
 
 #ifndef VECTOR_ITERATOR
