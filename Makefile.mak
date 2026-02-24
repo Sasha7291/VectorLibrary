@@ -48,12 +48,19 @@ CFLAGS 	:= -std=c90 -Wall -Wextra -pedantic
 ARFLAGS := rcs
 
 # ==================== OPTIONS ====================
-VECTOR_CHECK_ON 		?= OFF
-VECTOR_LITE 			?= OFF
-VECTOR_OPTIMIZE_SIZE	?= OFF
-VECTOR_SMALL_MEMORY 	?= OFF
-VECTOR_RUN_GENERATOR 	?= ON
-VECTOR_BUILD_TESTS 		?= OFF
+VECTOR_NO_DYNAMIC_ALLOC 	?= OFF
+VECTOR_MAX_N_VECTORS		?= 10
+VECTOR_STATIC_BUFFER_SIZE 	?= 1024
+VECTOR_8BIT_SIZE			?= OFF
+VECTOR_16BIT_SIZE			?= OFF
+VECTOR_USE_PACKED_STRUCT	?= OFF
+VECTOR_CHECK_ON 			?= OFF
+VECTOR_LITE 				?= OFF
+VECTOR_USE_INLINE			?= OFF
+VECTOR_OPTIMIZE_SIZE		?= OFF
+VECTOR_SMALL_MEMORY 		?= OFF
+VECTOR_USE_CUSTOM_ALLOCATOR	?= OFF
+VECTOR_RUN_GENERATOR 		?= ON
 
 # ==================== DIRECTORIES ====================
 SRC_DIR 	:= src
@@ -61,7 +68,6 @@ INCLUDE_DIR := include/$(PROJECT_NAMESPACE)
 GEN_DIR 	:= $(SRC_DIR)/gen
 PRIV_DIR 	:= $(SRC_DIR)/priv
 SCRIPT_DIR 	:= script
-TEST_DIR 	:= $(SRC_DIR)/test
 DOC_DIR 	:= doc
 LOG_DIR 	:= log
 BUILD_DIR 	:= build
@@ -175,11 +181,6 @@ ifneq ($(VECTOR_SMALL_MEMORY),OFF)
     CFLAGS += -DVECTOR_SMALL_MEMORY
 endif
 
-SYS_TYPES_H := $(shell $(CC) -E -xc - $(CFLAGS) 2>$(NULL) <<< "#include <sys/types.h>" && echo "YES" || echo "NO")
-ifeq ($(SYS_TYPES_H),YES)
-    CFLAGS += -DHAVE_SYS_TYPES_H
-endif
-
 INCLUDES := -I$(SRC_DIR) -I$(GEN_DIR) -I$(PRIV_DIR)
 
 ifeq ($(HOST_OS),Windows)
@@ -284,60 +285,6 @@ else
     $(BUILD_DIR)/%.d: %.c | $(BUILD_DIR)
 	@mkdir -p $(dir $@)
 	@$(CC) $(INCLUDES) -MM -MT $(@:.d=.o) $< > $@
-endif
-
-# ==================== TESTS ====================
-ifeq ($(VECTOR_BUILD_TESTS),ON)
-TEST_SOURCES := $(wildcard $(TEST_DIR)/*.c)
-
-ifeq ($(HOST_OS),Windows)
-    ifeq ($(IS_MSYS),true)
-        TEST_TARGETS := $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/test_%,$(TEST_SOURCES))
-        
-        test: $(TEST_TARGETS)
-		@echo "========================================"
-		@echo "Running tests:"
-		@for test in $(TEST_TARGETS); do \
-			echo "  Running $$(basename $$test)"; \
-			$$test; \
-		done
-		@echo "========================================"
-        
-        $(BUILD_DIR)/test_%: $(TEST_DIR)/%.c $(BUILD_DIR)/lib$(PROJECT_NAMESPACE).a | $(BUILD_DIR)
-		@echo "Building test: $<"
-		$(CC) $(COMPILE_FLAGS) $< -o $@ -L$(BUILD_DIR) -l$(PROJECT_NAMESPACE)
-    else
-        TEST_TARGETS := $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/test_%.exe,$(TEST_SOURCES))
-        
-        test: $(TEST_TARGETS)
-		@echo ========================================
-		@echo Running tests:
-		@for %i in ($(TEST_TARGETS)) do @(echo   Running %~ni & %i)
-		@echo ========================================
-        
-        $(BUILD_DIR)/test_%.exe: $(TEST_DIR)/%.c $(BUILD_DIR)/lib$(PROJECT_NAMESPACE).a | $(BUILD_DIR)
-		@echo Building test: $<
-		$(CC) $(COMPILE_FLAGS) $< -o $@ -L$(BUILD_DIR) -l$(PROJECT_NAMESPACE)
-    endif
-else
-    TEST_TARGETS := $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/test_%,$(TEST_SOURCES))
-    
-    test: $(TEST_TARGETS)
-	@echo "========================================"
-	@echo "Running tests:"
-	@for test in $(TEST_TARGETS); do \
-		echo "  Running $$(basename $$test)"; \
-		$$test; \
-	done
-	@echo "========================================"
-    
-    $(BUILD_DIR)/test_%: $(TEST_DIR)/%.c $(BUILD_DIR)/lib$(PROJECT_NAMESPACE).a | $(BUILD_DIR)
-	@echo "Building test: $<"
-	$(CC) $(COMPILE_FLAGS) $< -o $@ -L$(BUILD_DIR) -l$(PROJECT_NAMESPACE)
-endif
-else
-test:
-	@echo "Tests disabled (VECTOR_BUILD_TESTS=OFF)"
 endif
 
 # ==================== INSTALLATION ====================

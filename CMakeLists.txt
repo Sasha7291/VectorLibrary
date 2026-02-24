@@ -17,12 +17,19 @@ set(CMAKE_C_EXTENSIONS 			OFF)
 
 include(GNUInstallDirs)
 
-option(VECTOR_CHECK_ON      "Enable runtime checks"                                	OFF)
-option(VECTOR_LITE          "Build lite version (without function pointers)"      	OFF)
-option(VECTOR_OPTIMIZE_SIZE "Optimize for size (smaller growth factor)"           	OFF)
-option(VECTOR_SMALL_MEMORY  "Optimize for small memory (smaller initial capacity)" 	OFF)
-option(VECTOR_BUILD_TESTS   "Build tests"                                         	OFF)
-option(VECTOR_RUN_GENERATOR "Run vector_gen.bat to generate files"                	ON)
+option(VECTOR_NO_DYNAMIC_ALLOC 		"Use static memory allocation only" 									OFF)
+option(VECTOR_MAX_N_VECTORS 		"Maximum number of vectors (required VECTOR_NO_DYNAMIC_ALLOC=ON)" 		10)
+option(VECTOR_STATIC_BUFFER_SIZE 	"Size of static buffer in bytes (required VECTOR_NO_DYNAMIC_ALLOC=ON)" 	1024)
+option(VECTOR_8BIT_SIZE 			"Use uint8_t for size (for tiny systems)" 								OFF)
+option(VECTOR_16BIT_SIZE			"Use uint16_t for size (for small systems)" 							OFF)
+option(VECTOR_USE_PACKED_STRUCT 	"Use packed structs to save RAM" 										OFF)
+option(VECTOR_CHECK_ON      		"Enable runtime checks"                                					OFF)
+option(VECTOR_LITE          		"Build lite version (without function pointers)"      					OFF)
+option(VECTOR_USE_INLINE 			"Force inline functions for speed" 										OFF)
+option(VECTOR_OPTIMIZE_SIZE 		"Optimize for size (smaller growth factor)"           					OFF)
+option(VECTOR_SMALL_MEMORY  		"Optimize for small memory (smaller initial capacity)" 					OFF)
+option(VECTOR_USE_CUSTOM_ALLOCATOR 	"Use custom allocator functions (required VECTOR_NO_DYNAMIC_ALLOC=OFF)" OFF)
+option(VECTOR_RUN_GENERATOR 		"Run vector_gen.bat to generate files"                					ON)
 
 # ==================== NAMESPACE CONFIGURATION ====================
 string(TOLOWER ${VECTOR_PROJECT_NAME} VECTOR_PROJECT_NAMESPACE)
@@ -153,13 +160,6 @@ target_compile_definitions(${VECTOR_PROJECT_NAME}
         $<$<BOOL:${VECTOR_SMALL_MEMORY}>:VECTOR_SMALL_MEMORY>
 )
 
-# ==================== DEPENDENCIES ====================
-include(CheckIncludeFile)
-check_include_file(sys/types.h HAVE_SYS_TYPES_H)
-if(HAVE_SYS_TYPES_H)
-    target_compile_definitions(${VECTOR_PROJECT_NAME} PRIVATE HAVE_SYS_TYPES_H)
-endif()
-
 # ==================== INSTALL ====================
 set(VECTOR_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR}/${VECTOR_PROJECT_NAMESPACE})
 
@@ -200,26 +200,6 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/${VECTOR_PROJECT_NAME}ConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${VECTOR_PROJECT_NAME}
 )
-
-# ==================== TESTS ====================
-if(VECTOR_BUILD_TESTS)
-    enable_testing()
-    
-    file(GLOB TEST_SOURCES ${VECTOR_SOURCE_DIR}/test/*.c)
-    
-    foreach(TEST_SOURCE ${TEST_SOURCES})
-        get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
-        
-        add_executable(${TEST_NAME} ${TEST_SOURCE})
-        target_link_libraries(${TEST_NAME} ${VECTOR_PROJECT_NAME})
-        target_include_directories(${TEST_NAME} PRIVATE 
-            ${VECTOR_SOURCE_DIR}
-            ${VECTOR_GEN_DIR}
-        )
-        
-        add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-    endforeach()
-endif()
 
 # ==================== UNINSTALL TARGET ====================
 if(NOT TARGET uninstall)

@@ -50,6 +50,7 @@ VECTOR_INITIALIZE_TYPE(int)
 VECTOR_INITIALIZE_TYPE(char)
 VECTOR_INITIALIZE_TYPE(double *)
 
+// Custom type
 struct Point
 {
     int x;
@@ -174,12 +175,12 @@ int main() {
     vector_push_back_int_t(&vec, 30);
     
     // Element access
-    int first = vector_at_int_t(&vec, 0);
-    int last = vector_back_int_t(&vec);
+    const int first = vector_at_int_t(&vec, 0);
+    const int last = vector_back_int_t(&vec);
     
     // Size and capacity
-    size_t size = vector_size_int_t(&vec);
-    size_t capacity = vector_capacity_int_t(&vec);
+    const size_t size = vector_size_int_t(&vec);
+    const size_t capacity = vector_capacity_int_t(&vec);
     
     // Free memory
     destroy_vector_int_t(&vec);
@@ -190,15 +191,21 @@ int main() {
 
 ## Build Options
 
-### CMake Options:
-| Option | Description | Default |
-|--------|-------------|---------|
-| `VECTOR_CHECK_ON` | Enable runtime checks | `OFF` |
-| `VECTOR_LITE` | Lite version (without function pointers) | `OFF` |
-| `VECTOR_OPTIMIZE_SIZE` | Optimize for size | `OFF` |
-| `VECTOR_SMALL_MEMORY` | Small initial capacity | `OFF` |
-| `VECTOR_BUILD_TESTS` | Build tests | `OFF` |
-| `VECTOR_RUN_GENERATOR` | Run type generator | `ON` |
+| Option | Description | Default 
+|--------|-------------|---------
+| `VECTOR_NO_DYNAMIC_ALLOC` | Static memory allocation only | `OFF`
+| `VECTOR_MAX_N_VECTORS` | Maximum number of vectors (required VECTOR_NO_DYNAMIC_ALLOC=ON) | `10`
+| `VECTOR_STATIC_BUFFER_SIZE` | Static buffer size in bytes (required VECTOR_NO_DYNAMIC_ALLOC=ON) | `1024`
+| `VECTOR_USE_INLINE` | Force inline functions for speed | `OFF`
+| `VECTOR_8BIT_SIZE` | Use uint8_t for size (max 255) | `OFF`
+| `VECTOR_16BIT_SIZE` | Use uint16_t for size (max 65535) | `OFF`
+| `VECTOR_USE_PACKED_STRUCT` | Use packed structures | `OFF`
+| `VECTOR_CHECK_ON` | Enable runtime checks | `OFF`
+| `VECTOR_LITE` | Lite version (without function pointers) | `OFF`
+| `VECTOR_OPTIMIZE_SIZE` | Optimize for size (smaller growth factor) | `OFF`
+| `VECTOR_SMALL_MEMORY` | Small initial capacity | `OFF`
+| `VECTOR_USE_CUSTOM_ALLOCATOR` | Use custom allocator functions (required VECTOR_NO_DYNAMIC_ALLOC=OFF) | `OFF`
+| `VECTOR_RUN_GENERATOR` | Run type generator | `ON`
 
 ### Make Options:
 ```bash
@@ -257,25 +264,28 @@ make VECTOR_BUILD_TESTS=ON test
 
 ```
 VectorLibrary/
-├── CMakeLists.txt            # Main CMake file
-├── Makefile.mak              # Makefile for building
-├── README.md                 # Documentation
-├── script/                   # Generator scripts
-│   ├── vector_gen.py         # Python generator
-│   ├── vector_gen.bat        # Windows generator
-│   └── vector_gen.sh         # Unix generator
-├── src/                      # Source code
-│   ├── vector.h              # Main header
-│   ├── vector.c              # Implementation
-│   ├── priv/                 # Private headers
+├── CMakeLists.txt            			# Main CMake file
+├── Makefile.mak              			# Makefile for building
+├── README.md                 			# Documentation
+├── script/                   			# Generator scripts
+│   ├── vector_gen.py         			# Python generator
+│   ├── vector_gen.bat        			# Windows generator
+│   └── vector_gen.sh         			# Unix generator
+├── src/                      			# Source code
+│   ├── vector.h              			# Main header
+│   ├── vector.c              			# Implementation
+│   ├── priv/                 			# Private headers
+│   │   ├── dynamic_vector_template.h
+│   │   ├── dynamic_vector_template.c
+│   │   ├── static_vector_template.h
+│   │   ├── static_vector_template.c
 │   │   ├── template.h
 │   │   ├── vector_template.h
 │   │   └── vector_template.c
-│   ├── gen/                   # Generated files
-│   └── test/                  # Tests
-├── include/                   # Installable headers
-├── doc/                       # Documentation
-└── log/                       # Generator logs
+│   └── gen/                   			# Generated files
+├── include/                   			# Installable headers
+├── doc/                       			# Documentation
+└── log/                       			# Generator logs
 ```
 
 ## Contributing

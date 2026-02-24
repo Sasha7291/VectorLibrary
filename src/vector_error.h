@@ -17,21 +17,21 @@
  * @enum   vector_error
  * @brief  Error codes for vector operations
  *
- * @var    VECTOR_ERROR_SUCCESS		Operation completed successfully
- * @var    VECTOR_ERROR_ALLOC		Memory allocation failed
- * @var    VECTOR_ERROR_INDEX  		Index out of bounds
- * @var    VECTOR_ERROR_NULL   		NULL pointer encountered
- * @var    VECTOR_ERROR_CAPACITY  	Capacity operation failed
- * @var    VECTOR_ERROR_SIZE   		Size operation failed
+ * @var    	VECTOR_ERROR_SUCCESS		Operation completed successfully
+ * @var    	VECTOR_ERROR_ALLOC			Memory allocation failed (VECTOR_NO_DYNAMIC_ALLOC=OFF)
+ * @var		VECTOR_ERROR_NO_FREE_VECTOR	VECTOR_MAX_N_VECTORS are used (VECTOR_NO_DYNAMIC_ALLOC=ON)
+ * @var    	VECTOR_ERROR_INDEX  		Index out of bounds
+ * @var    	VECTOR_ERROR_NULL   		NULL pointer encountered
+ * @var    	VECTOR_ERROR_CAPACITY  		Capacity operation failed (VECTOR_NO_DYNAMIC_ALLOC=OFF)
  */
 typedef enum vector_error
 {
     VECTOR_ERROR_SUCCESS = 0,
     VECTOR_ERROR_ALLOC,
+	VECTOR_ERROR_NO_FREE_VECTOR,
     VECTOR_ERROR_INDEX,
     VECTOR_ERROR_NULL,
-    VECTOR_ERROR_CAPACITY,
-    VECTOR_ERROR_SIZE
+    VECTOR_ERROR_CAPACITY
 } vector_error_t;
 
 
