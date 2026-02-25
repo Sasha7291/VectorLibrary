@@ -47,7 +47,7 @@ typedef T * TEMPLATE(vector_iterator, T);
 typedef struct TEMPLATE(vector_private_t, T) TEMPLATE(vector_private, T);
 
 typedef struct VECTOR_T VECTOR;
-struct VECTOR_T VECTOR_PACKED_STRUCT
+struct VECTOR_PACKED_STRUCT VECTOR_T
 {
 #ifndef VECTOR_LITE
 	void (*append_range)(VECTOR **, const VECTOR *, vector_error_t *);

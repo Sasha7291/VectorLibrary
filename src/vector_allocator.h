@@ -12,7 +12,7 @@
 #include "vector_config.h"
 
 
-typedef struct vector_allocator
+typedef struct VECTOR_PACKED_STRUCT vector_allocator
 {
     void *(*malloc)(vector_size_t size);
     void *(*calloc)(vector_size_t count, vector_size_t size);

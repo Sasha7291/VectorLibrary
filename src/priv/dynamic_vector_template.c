@@ -28,7 +28,7 @@
 #include <stdbool.h>
 
 
-struct TEMPLATE(vector_private_t, T) VECTOR_PACKED_STRUCT
+struct VECTOR_PACKED_STRUCT TEMPLATE(vector_private_t, T)
 {
 	T *__data;
     vector_size_t __size;
