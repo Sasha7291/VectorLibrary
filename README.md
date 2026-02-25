@@ -203,7 +203,7 @@ int main() {
 | `VECTOR_CHECK_ON` | Enable runtime checks | `OFF`
 | `VECTOR_LITE` | Lite version (without function pointers) | `OFF`
 | `VECTOR_OPTIMIZE_SIZE` | Optimize for size (smaller growth factor) | `OFF`
-| `VECTOR_SMALL_MEMORY` | Small initial capacity | `OFF`
+| `VECTOR_SMALL_MEMORY` | Small initial capacity (required VECTOR_NO_DYNAMIC_ALLOC=OFF) | `OFF`
 | `VECTOR_USE_CUSTOM_ALLOCATOR` | Use custom allocator functions (required VECTOR_NO_DYNAMIC_ALLOC=OFF) | `OFF`
 | `VECTOR_RUN_GENERATOR` | Run type generator | `ON`
 
