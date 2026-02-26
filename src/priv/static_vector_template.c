@@ -517,6 +517,8 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(reverse_indx)(
 	vector_error_t *error
 )
 {
+	--end_index;
+	
 	if (begin_index == end_index)
 	{
 		if (error != NULL)
