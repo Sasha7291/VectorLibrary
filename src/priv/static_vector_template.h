@@ -48,6 +48,18 @@ struct VECTOR_T VECTOR_PACKED_STRUCT
     T (*back)(const VECTOR *);
     VECTOR_ITERATOR (*begin)(const VECTOR *);
     T *(*data)(const VECTOR *);
+   void (*emplace_indx)(
+		VECTOR *, 
+		vector_index_t, 
+		T, 
+		vector_error_t *
+	);
+    void (*emplace_it)(
+    	VECTOR *,
+		const VECTOR_ITERATOR,
+		T,
+		vector_error_t *
+	);
     VECTOR_ITERATOR (*end)(const VECTOR *);
 	vector_index_t (*find_first_not_of)(const VECTOR *, T);
 	vector_index_t (*find_last_not_of)(const VECTOR *, T);
@@ -91,7 +103,7 @@ struct VECTOR_T VECTOR_PACKED_STRUCT
 	);
 #endif // VECTOR_LITE
 
-    const vector_index_t __index;
+    const uint64_t __begin_index;
 };
 
 VECTOR *VECTOR_FUNC(create_vector)(T init_value, vector_error_t *error);

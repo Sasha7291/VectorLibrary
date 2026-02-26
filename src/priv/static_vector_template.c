@@ -98,6 +98,16 @@ static T __vector_data[VECTOR_MAX_N_VECTORS * VECTOR_STATIC_BUFFER_SIZE];
 
 #endif // VECTOR_CHECK_ON
 
+#ifndef VECTOR_DATA
+#define VECTOR_DATA(_range, _index) \
+	(__vector_data[(_range)->__begin_index + (_index)])
+#endif // VECTOR_DATA
+
+#ifndef VECTOR_BEGIN
+#define VECTOR_BEGIN(_range) \
+	(__vector_data + (_range)->__begin_index)
+#endif // VECTOR_BEGIN
+
 
 #ifndef VECTOR_LITE
 static VECTOR_INLINE void VECTOR_FUNC(assign)(
@@ -194,10 +204,12 @@ VECTOR *VECTOR_FUNC(create_vector)(T init_value, vector_error_t *error)
 	    {
 	        __vector_used[i] = true;
 	        VECTOR *new_vec = &__vector_pool[i];
-	        *new_vec = (VECTOR){ .__index = i };
+	        *new_vec = (VECTOR){ 
+				.__begin_index = i * VECTOR_MAX_STATIC_VECTORS 
+			};
 
 	        for (vector_index_t j = 0; j < VECTOR_STATIC_BUFFER_SIZE; ++j)
-				__vector_data[i * VECTOR_STATIC_BUFFER_SIZE + j] = init_value;
+				VECTOR_DATA(new_vec, j) = init_value;
 
 #ifndef VECTOR_LITE
 			new_vec->assign = VECTOR_FUNC(assign);
@@ -248,12 +260,15 @@ VECTOR *VECTOR_FUNC(copy_create_vector)(
 	    if (!__vector_used[i])
 	    {
 	        __vector_used[i] = true;
+			
 	        VECTOR *new_vec = &__vector_pool[i];
-	        *new_vec = (VECTOR){ .__index = i };
+	        (*new_vec) = (VECTOR){ 
+				.__begin_index = i * VECTOR_MAX_STATIC_VECTORS 
+			};
 
 	    	memcpy(
-				__vector_data + i * VECTOR_STATIC_BUFFER_SIZE,
-				__vector_data + other->__index * VECTOR_STATIC_BUFFER_SIZE,
+				VECTOR_BEGIN(new_vec)
+				VECTOR_BEGIN(other),
 				VECTOR_STATIC_BUFFER_SIZE
 	    	);
 
@@ -312,7 +327,7 @@ void VECTOR_FUNC(destroy_vector)(VECTOR *self)
 	if (self == NULL)
 		return;
 
-	__vector_used[self->__index] = false;
+	__vector_used[self->__begin_index] = false;
 }
 
 
@@ -322,8 +337,8 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(assign)(
 	vector_error_t *error
 )
 {
-    for (vector_index_t j = 0; j < VECTOR_STATIC_BUFFER_SIZE; ++j)
-		__vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + j] = value;
+    for (vector_index_t i = 0; i < VECTOR_STATIC_BUFFER_SIZE; ++i)
+		VECTOR_DATA(self, i) = value;
 
 	if (error != NULL)
 		(*error) = VECTOR_ERROR_SUCCESS;
@@ -338,8 +353,8 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(assign_range)(
 	VECTOR_CHECK_INPUT_RANGE(range, error, )
 
 	memcpy(
-		__vector_data + self->__index * VECTOR_STATIC_BUFFER_SIZE,
-		__vector_data + range->__index * VECTOR_STATIC_BUFFER_SIZE,
+		VECTOR_BEGIN(self),
+		VECTOR_BEGIN(range),
 		VECTOR_STATIC_BUFFER_SIZE
 	);
 
@@ -358,22 +373,22 @@ VECTOR_STATIC VECTOR_INLINE T VECTOR_FUNC(at)(
 	if (error != NULL)
 		(*error) = VECTOR_ERROR_SUCCESS;
 
-    return __vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + index];
+    return VECTOR_DATA(self, index);
 }
 
 VECTOR_STATIC VECTOR_INLINE T VECTOR_FUNC(back)(const VECTOR *self)
 {
-	return __vector_data[(self->__index + 1) * VECTOR_STATIC_BUFFER_SIZE - 1];
+	return VECTOR_DATA(self, VECTOR_STATIC_BUFFER_SIZE - 1);
 }
 
 VECTOR_STATIC VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(begin)(const VECTOR *self)
 {
-    return __vector_data + self->__index * VECTOR_STATIC_BUFFER_SIZE;
+    return VECTOR_BEGIN(self);
 }
 
 VECTOR_STATIC VECTOR_INLINE T *VECTOR_FUNC(data)(const VECTOR *self)
 {
-	return __vector_data + self->__index * VECTOR_STATIC_BUFFER_SIZE;
+	return VECTOR_BEGIN(self);
 }
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(emplace_indx)(
@@ -385,7 +400,7 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(emplace_indx)(
 {
 	VECTOR_CHECK_INDEX((const VECTOR *)self, index, error, )
 
-	__vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + index] = value;
+	VECTOR_DATA(self, index) = value;
 
 	if (error != NULL)
 		(*error) = VECTOR_ERROR_SUCCESS;
@@ -408,7 +423,7 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(emplace_it)(
 
 VECTOR_STATIC VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(end)(const VECTOR *self)
 {
-	return __vector_data + (self->__index + 1) * VECTOR_STATIC_BUFFER_SIZE;
+	return VECTOR_BEGIN(self) + VECTOR_STATIC_BUFFER_SIZE;
 }
 
 VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_first_not_of)(
@@ -417,8 +432,8 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_first_not_of)(
 )
 {
     for (vector_index_t i = 0; i < VECTOR_STATIC_BUFFER_SIZE; ++i)
-        if (__vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + i] != value)
-            return (vector_index_t)i;
+        if (VECTOR_DATA(self, i) != value)
+            return i;
 
     return VECTOR_INVALID_INDEX;
 }
@@ -429,7 +444,7 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_last_not_of)(
 )
 {
     for (vector_index_t i = VECTOR_STATIC_BUFFER_SIZE - 1; i >= 0; --i)
-        if (__vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + i] != value)
+        if (VECTOR_DATA(self, i) != value)
             return i;
 
     return VECTOR_INVALID_INDEX;
@@ -441,8 +456,8 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_first_of)(
 )
 {
     for (vector_index_t i = 0; i < VECTOR_STATIC_BUFFER_SIZE; ++i)
-        if (__vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + i] == value)
-            return (vector_index_t)i;
+        if (VECTOR_DATA(self, i) == value)
+            return i;
 
     return VECTOR_INVALID_INDEX;
 }
@@ -453,7 +468,7 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_last_of)(
 )
 {
 	for (vector_index_t i = VECTOR_STATIC_BUFFER_SIZE - 1; i >= 0; --i)
-        if (__vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + i] == value)
+        if (VECTOR_DATA(self, i) == value)
             return i;
 
     return VECTOR_INVALID_INDEX;
@@ -461,7 +476,7 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_last_of)(
 
 VECTOR_STATIC VECTOR_INLINE T VECTOR_FUNC(front)(const VECTOR *self)
 {
-    return __vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE];
+    return VECTOR_DATA(self, 0);
 }
 
 VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(indx)(
@@ -471,7 +486,7 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(indx)(
 )
 {
 	const vector_index_t index =
-		(vector_index_t)(it - (__vector_data + self->__index * VECTOR_STATIC_BUFFER_SIZE));
+		(vector_index_t)(it - VECTOR_BEGIN(self));
 
 	VECTOR_CHECK_INDEX(self, index, error, VECTOR_INVALID_INDEX)
 
@@ -492,7 +507,7 @@ VECTOR_STATIC VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(it)(
 	if (error != NULL)
 		*error = VECTOR_ERROR_SUCCESS;
 
-	return __vector_data + self->__index * VECTOR_STATIC_BUFFER_SIZE + index;
+	return VECTOR_BEGIN(self) + index;
 }
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(reverse_indx)(
@@ -502,18 +517,27 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(reverse_indx)(
 	vector_error_t *error
 )
 {
+	if (begin_index == end_index)
+	{
+		if (error != NULL)
+			*error = VECTOR_ERROR_SUCCESS;
+		
+		return;
+	}
+	
 	VECTOR_CHECK_INDEX((const VECTOR *)self, begin_index, error, )
 	VECTOR_CHECK_INDEX((const VECTOR *)self, end_index, error, )
 
-	const vector_index_t half_index =
-		begin_index + ((end_index - begin_index) >> 1);
-	for (vector_index_t i = begin_index; i < half_index; ++i)
-		VECTOR_FUNC(swap_indx)(
-			self,
-			i,
-			begin_index + end_index - 1 - i,
-			NULL
-		);
+	T temp;
+	while (begin_index < end_index)
+	{
+		temp = VECTOR_DATA(self, begin_index);
+		VECTOR_DATA(self, begin_index) = VECTOR_DATA(self, end_index);
+		VECTOR_DATA(self, end_index) = temp;
+		
+		++begin_index;
+		--end_index;
+	}
 
 	if (error != NULL)
 		*error = VECTOR_ERROR_SUCCESS;
@@ -546,17 +570,20 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(swap_indx)(
 	vector_error_t *error
 )
 {
+	if (index_a == index_b)
+	{
+		if (error != NULL)
+			*error = VECTOR_ERROR_SUCCESS;
+		
+		return;
+	}
+	
 	VECTOR_CHECK_INDEX((const VECTOR *)self, index_a, error, )
 	VECTOR_CHECK_INDEX((const VECTOR *)self, index_b, error, )
 
-	if (index_a == index_b)
-		return;
-
-    const T temp
-		= __vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + index_a];
-    __vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + index_a]
-		= __vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + index_b];
-    __vector_data[self->__index * VECTOR_STATIC_BUFFER_SIZE + index_b] = temp;
+    const T temp = VECTOR_DATA(self, index_a);
+    VECTOR_DATA(self, index_a) = VECTOR_DATA(self, index_b);
+    VECTOR_DATA(self, index_b) = temp;
 
 	if (error != NULL)
 		*error = VECTOR_ERROR_SUCCESS;

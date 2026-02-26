@@ -53,22 +53,39 @@ struct VECTOR_PACKED_STRUCT VECTOR_T
 	void (*append_range)(VECTOR **, const VECTOR *, vector_error_t *);
 	void (*assign)(VECTOR **, vector_size_t, T, vector_error_t *);
 	void (*assign_range)(VECTOR **self, const VECTOR *, vector_error_t *);
-    T (*at)(const VECTOR **, vector_size_t, vector_error_t *);
+    T (*at)(const VECTOR **, vector_index_t, vector_error_t *);
     T (*back)(const VECTOR **);
     VECTOR_ITERATOR (*begin)(const VECTOR **);
     vector_size_t (*capacity)(const VECTOR **);
     void (*clear)(VECTOR **);
     T *(*data)(const VECTOR **);
-    void (*emplace_indx)(VECTOR **, vector_size_t, T, vector_error_t *);
+    void (*emplace_indx)(
+		VECTOR **, 
+		vector_index_t, 
+		T, 
+		vector_error_t *
+	);
     void (*emplace_it)(
     	VECTOR **,
 		const VECTOR_ITERATOR,
 		T,
 		vector_error_t *
 	);
+	void (*emplace_range_indx)(
+		VECTOR **, 
+		vector_index_t, 
+		const VECTOR *,
+		vector_error_t *
+	);
+    void (*emplace_range_it)(
+		VECTOR **, 
+		ITERATOR, 
+		const VECTOR *,
+		vector_error_t *
+	);
     bool (*empty)(const VECTOR **);
     VECTOR_ITERATOR (*end)(const VECTOR **);
-    void (*erase_indx)(VECTOR **, vector_size_t, vector_error_t *);
+    void (*erase_indx)(VECTOR **, vector_index_t, vector_error_t *);
     void (*erase_it)(VECTOR **, VECTOR_ITERATOR, vector_error_t *);
 	vector_index_t (*find_first_not_of)(const VECTOR **, T);
 	vector_index_t (*find_last_not_of)(const VECTOR **, T);
@@ -80,7 +97,7 @@ struct VECTOR_PACKED_STRUCT VECTOR_T
 		const VECTOR_ITERATOR,
 		vector_error_t *
 	);
-    void (*insert_indx)(VECTOR **, vector_size_t, T, vector_error_t *);
+    void (*insert_indx)(VECTOR **, vector_index_t, T, vector_error_t *);
     void (*insert_it)(
     	VECTOR **,
 		const VECTOR_ITERATOR,
@@ -89,7 +106,7 @@ struct VECTOR_PACKED_STRUCT VECTOR_T
 	);
 	void (*insert_range_indx)(
 		VECTOR **,
-		vector_size_t,
+		vector_index_t,
 		const VECTOR *,
 		vector_error_t *
 	);
@@ -101,18 +118,18 @@ struct VECTOR_PACKED_STRUCT VECTOR_T
 	);
 	VECTOR_ITERATOR (*it)(
 		const VECTOR **,
-		vector_size_t,
+		vector_index_t,
 		vector_error_t *
 	);
     void (*pop_back)(VECTOR **);
     void (*push_back)(VECTOR **, T, vector_error_t *);
-    void (*reserve)(VECTOR **, vector_size_t, vector_error_t *);
+    void (*reserve)(VECTOR **, vector_index_t, vector_error_t *);
     void (*resize)(VECTOR **, vector_size_t, vector_error_t *);
     void (*resize_with)(VECTOR **, vector_size_t, T, vector_error_t *);
     void (*reverse_indx)(
     	VECTOR **,
-		vector_size_t,
-		vector_size_t,
+		vector_index_t,
+		vector_index_t,
 		vector_error_t *
 	);
     void (*reverse_it)(
@@ -124,8 +141,8 @@ struct VECTOR_PACKED_STRUCT VECTOR_T
     vector_size_t (*size)(const VECTOR **);
     void (*swap_indx)(
     	VECTOR **,
-		vector_size_t,
-		vector_size_t,
+		vector_index_t,
+		vector_index_t,
 		vector_error_t *
 	);
     void (*swap_it)(
@@ -136,9 +153,12 @@ struct VECTOR_PACKED_STRUCT VECTOR_T
 	);
 
 #ifdef VECTOR_USE_CUSTOM_ALLOCATOR
-    const vector_allocator_t *(*allocator)(const VECTOR **);
-	void (*set_allocator)(
+    vector_allocator_t *(*allocator)(
 		const VECTOR **,
+		vector_error_t *
+	);
+	void (*set_allocator)(
+		VECTOR **,
 		vector_allocator_t *,
 		vector_error_t *
 	);
@@ -183,7 +203,7 @@ VECTOR_INLINE void VECTOR_FUNC(assign_range)(
 );
 VECTOR_INLINE T VECTOR_FUNC(at)(
 	const VECTOR **self,
-	vector_size_t index,
+	vector_index_t index,
 	vector_error_t *error
 );
 VECTOR_INLINE T VECTOR_FUNC(back)(const VECTOR **self);
@@ -193,7 +213,7 @@ VECTOR_INLINE void VECTOR_FUNC(clear)(VECTOR **self);
 VECTOR_INLINE T *VECTOR_FUNC(data)(const VECTOR **self);
 VECTOR_INLINE void VECTOR_FUNC(emplace_indx)(
     VECTOR **self,
-    vector_size_t index,
+    vector_index_t index,
     T value,
     vector_error_t *error
 );
@@ -203,11 +223,23 @@ VECTOR_INLINE void VECTOR_FUNC(emplace_it)(
     T value,
     vector_error_t *error
 );
+VECTOR_INLINE void FUNC(emplace_range_indx)(
+	VECTOR **self, 
+	vector_index_t index, 
+	const VECTOR *range,
+    vector_error_t *error
+);
+VECTOR_INLINE void FUNC(emplace_range_it)(
+	VECTOR **self, 
+	ITERATOR it, 
+	const VECTOR *range,
+    vector_error_t *error
+);
 VECTOR_INLINE bool VECTOR_FUNC(empty)(const VECTOR **self);
 VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(end)(const VECTOR **self);
 VECTOR_INLINE void VECTOR_FUNC(erase_indx)(
     VECTOR **self,
-    vector_size_t index,
+    vector_index_t index,
     vector_error_t *error
 );
 VECTOR_INLINE void VECTOR_FUNC(erase_it)(
@@ -239,7 +271,7 @@ VECTOR_INLINE vector_index_t VECTOR_FUNC(indx)(
 );
 VECTOR_INLINE void VECTOR_FUNC(insert_indx)(
     VECTOR **self,
-    vector_size_t before,
+    vector_index_t before,
     T value,
     vector_error_t *error
 );
@@ -251,7 +283,7 @@ VECTOR_INLINE void VECTOR_FUNC(insert_it)(
 );
 VECTOR_INLINE void VECTOR_FUNC(insert_range_indx)(
     VECTOR **self,
-    vector_size_t before,
+    vector_index_t before,
     const VECTOR *range,
     vector_error_t *error
 );
@@ -263,7 +295,7 @@ VECTOR_INLINE void VECTOR_FUNC(insert_range_it)(
 );
 VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(it)(
     const VECTOR **self,
-    vector_size_t index,
+    vector_index_t index,
 	vector_error_t *error
 );
 VECTOR_INLINE void VECTOR_FUNC(pop_back)(VECTOR **self);
@@ -274,7 +306,7 @@ VECTOR_INLINE void VECTOR_FUNC(push_back)(
 );
 VECTOR_INLINE void VECTOR_FUNC(reserve)(
     VECTOR **self,
-    vector_size_t new_capacity,
+    vector_index_t new_capacity,
     vector_error_t *error
 );
 VECTOR_INLINE void VECTOR_FUNC(resize)(
@@ -290,8 +322,8 @@ VECTOR_INLINE void VECTOR_FUNC(resize_with)(
 );
 VECTOR_INLINE void VECTOR_FUNC(reverse_indx)(
     VECTOR **self,
-    vector_size_t begin_index,
-    vector_size_t end_index,
+    vector_index_t begin_index,
+    vector_index_t end_index,
     vector_error_t *error
 );
 VECTOR_INLINE void VECTOR_FUNC(reverse_it)(
@@ -303,8 +335,8 @@ VECTOR_INLINE void VECTOR_FUNC(reverse_it)(
 VECTOR_INLINE vector_size_t VECTOR_FUNC(size)(const VECTOR **self);
 VECTOR_INLINE void VECTOR_FUNC(swap_indx)(
     VECTOR **self,
-    vector_size_t index_a,
-    vector_size_t index_b,
+    vector_index_t index_a,
+    vector_index_t index_b,
     vector_error_t *error
 );
 VECTOR_INLINE void VECTOR_FUNC(swap_it)(
@@ -315,9 +347,12 @@ VECTOR_INLINE void VECTOR_FUNC(swap_it)(
 );
 
 #ifdef VECTOR_USE_CUSTOM_ALLOCATOR
-const vector_allocator_t *VECTOR_FUNC(allocator)(const VECTOR **self);
+vector_allocator_t *VECTOR_FUNC(allocator)(
+	const VECTOR **,
+	vector_error_t *
+);
 void VECTOR_FUNC(set_allocator)(
-	const VECTOR **self,
+	VECTOR **self,
 	vector_allocator_t *alloc,
 	vector_error_t error*
 );

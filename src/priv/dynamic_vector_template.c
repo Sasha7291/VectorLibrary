@@ -52,7 +52,7 @@ struct VECTOR_PACKED_STRUCT TEMPLATE(vector_private_t, T)
 #endif // VECTOR_ITERATOR
 
 #ifndef PRIVATE
-#define PRIVATE(_self)		((_self)->__private)
+#define PRIVATE(_range)		((_range)->__private)
 #endif // PRIVATE
 
 #ifdef VECTOR_USE_CUSTOM_ALLOCATOR
@@ -80,19 +80,19 @@ struct VECTOR_PACKED_STRUCT TEMPLATE(vector_private_t, T)
 #else // VECTOR_USE_CUSTOM_ALLOCATOR
 
 #ifndef VECTOR_MALLOC
-#define VECTOR_MALLOC(_self, _size) 		malloc((_size))
+#define VECTOR_MALLOC(_self, _size) 		malloc((_size));
 #endif // VECTOR_MALLOC
 
 #ifndef VECTOR_CALLOC
-#define VECTOR_CALLOC(_self, _count, _size) calloc((_count), (_size))
+#define VECTOR_CALLOC(_self, _count, _size) calloc((_count), (_size));
 #endif // VECTOR_CALLOC
 
 #ifndef VECTOR_REALLOC
-#define VECTOR_REALLOC(_self, _ptr, _size) 	realloc((_ptr), (_size))
+#define VECTOR_REALLOC(_self, _ptr, _size) 	realloc((_ptr), (_size));
 #endif // VECTOR_REALLOC
 
 #ifndef VECTOR_FREE
-#define VECTOR_FREE(_self, _ptr) 			free((_ptr))
+#define VECTOR_FREE(_self, _ptr) 			free((_ptr));
 #endif // VECTOR_FREE
 
 #endif // VECTOR_USE_CUSTOM_ALLOCATOR
@@ -190,6 +190,16 @@ typedef T * TEMPLATE(vector_iterator, T);
 
 #endif // VECTOR_CHECK_ON
 
+#ifndef VECTOR_DATA
+#define VECTOR_DATA(_range, _index) \
+	(PRIVATE((_range))->__data[(_index)])
+#endif // VECTOR_DATA
+
+#ifndef VECTOR_BEGIN
+#define VECTOR_BEGIN(_range) \
+	(PRIVATE((_range))->__data)
+#endif // VECTOR_BEGIN
+
 
 static VECTOR_INLINE bool VECTOR_FUNC(ensure_capacity)(
     VECTOR **self,
@@ -217,7 +227,7 @@ static VECTOR_INLINE void VECTOR_FUNC(assign_range)(
 );
 static VECTOR_INLINE T VECTOR_FUNC(at)(
 	const VECTOR **self,
-	vector_size_t index,
+	vector_index_t index,
 	vector_error_t *error
 );
 static VECTOR_INLINE T VECTOR_FUNC(back)(const VECTOR **self);
@@ -227,7 +237,7 @@ static VECTOR_INLINE void VECTOR_FUNC(clear)(VECTOR **self);
 static VECTOR_INLINE T *VECTOR_FUNC(data)(const VECTOR **self);
 static VECTOR_INLINE void VECTOR_FUNC(emplace_indx)(
     VECTOR **self,
-    vector_size_t index,
+    vector_index_t index,
     T value,
     vector_error_t *error
 );
@@ -237,11 +247,23 @@ static VECTOR_INLINE void VECTOR_FUNC(emplace_it)(
     T value,
     vector_error_t *error
 );
+static VECTOR_INLINE void FUNC(emplace_range_indx)(
+	VECTOR **self, 
+	vector_index_t index, 
+	const VECTOR *range,
+    vector_error_t *error
+);
+static VECTOR_INLINE void FUNC(emplace_range_it)(
+	VECTOR **self, 
+	ITERATOR it, 
+	const VECTOR *range,
+    vector_error_t *error
+);
 static VECTOR_INLINE bool VECTOR_FUNC(empty)(const VECTOR **self);
 static VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(end)(const VECTOR **self);
 static VECTOR_INLINE void VECTOR_FUNC(erase_indx)(
     VECTOR **self,
-    vector_size_t index,
+    vector_index_t index,
     vector_error_t *error
 );
 static VECTOR_INLINE void VECTOR_FUNC(erase_it)(
@@ -273,7 +295,7 @@ static VECTOR_INLINE vector_index_t VECTOR_FUNC(indx)(
 );
 static VECTOR_INLINE void VECTOR_FUNC(insert_indx)(
     VECTOR **self,
-    vector_size_t before,
+    vector_index_t before,
     T value,
     vector_error_t *error
 );
@@ -285,7 +307,7 @@ static VECTOR_INLINE void VECTOR_FUNC(insert_it)(
 );
 static VECTOR_INLINE void VECTOR_FUNC(insert_range_indx)(
     VECTOR **self,
-    vector_size_t before,
+    vector_index_t before,
     const VECTOR *range,
     vector_error_t *error
 );
@@ -297,7 +319,7 @@ static VECTOR_INLINE void VECTOR_FUNC(insert_range_it)(
 );
 static VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(it)(
     const VECTOR **self,
-    vector_size_t index,
+    vector_index_t index,
 	vector_error_t *error
 );
 static VECTOR_INLINE void VECTOR_FUNC(pop_back)(VECTOR **self);
@@ -308,7 +330,7 @@ static VECTOR_INLINE void VECTOR_FUNC(push_back)(
 );
 static VECTOR_INLINE void VECTOR_FUNC(reserve)(
     VECTOR **self,
-    vector_size_t new_capacity,
+    vector_index_t new_capacity,
     vector_error_t *error
 );
 static VECTOR_INLINE void VECTOR_FUNC(resize)(
@@ -324,8 +346,8 @@ static VECTOR_INLINE void VECTOR_FUNC(resize_with)(
 );
 static VECTOR_INLINE void VECTOR_FUNC(reverse_indx)(
     VECTOR **self,
-    vector_size_t begin_index,
-    vector_size_t end_index,
+    vector_index_t begin_index,
+    vector_index_t end_index,
     vector_error_t *error
 );
 static VECTOR_INLINE void VECTOR_FUNC(reverse_it)(
@@ -337,8 +359,8 @@ static VECTOR_INLINE void VECTOR_FUNC(reverse_it)(
 static VECTOR_INLINE vector_size_t VECTOR_FUNC(size)(const VECTOR **self);
 static VECTOR_INLINE void VECTOR_FUNC(swap_indx)(
     VECTOR **self,
-    vector_size_t index_a,
-    vector_size_t index_b,
+    vector_index_t index_a,
+    vector_index_t index_b,
     vector_error_t *error
 );
 static VECTOR_INLINE void VECTOR_FUNC(swap_it)(
@@ -349,9 +371,12 @@ static VECTOR_INLINE void VECTOR_FUNC(swap_it)(
 );
 
 #ifdef VECTOR_USE_CUSTOM_ALLOCATOR
-static VECTOR_INLINE const vector_allocator_t *VECTOR_FUNC(allocator)(const VECTOR **self);
+static VECTOR_INLINE vector_allocator_t *VECTOR_FUNC(allocator)(
+	const VECTOR **,
+	vector_error_t *
+);
 static VECTOR_INLINE void VECTOR_FUNC(set_allocator)(
-	const VECTOR **self,
+	VECTOR **self,
 	vector_allocator_t *alloc,
 	vector_error_t error*
 );
@@ -397,7 +422,7 @@ VECTOR *VECTOR_FUNC(create_vector)(
         return NULL;
     }
     
-    PRIVATE(new_vec)->__data = NULL;
+    VECTOR_BEGIN(new_vec) = NULL;
     PRIVATE(new_vec)->__size = 0;
     PRIVATE(new_vec)->__allocated_size = 0;
 #ifdef VECTOR_USE_CUSTOM_ALLOCATOR
@@ -414,8 +439,8 @@ VECTOR *VECTOR_FUNC(create_vector)(
             return NULL;
         }
         
-        for (vector_size_t i = 0; i < init_size; ++i)
-            PRIVATE(new_vec)->__data[i] = init_value;
+        for (vector_index_t i = 0; i < (vector_index_t)init_size; ++i)
+            VECTOR_DATA(new_vec, i) = init_value;
 
         PRIVATE(new_vec)->__size = init_size;
     }
@@ -432,6 +457,8 @@ VECTOR *VECTOR_FUNC(create_vector)(
 	new_vec->data = VECTOR_FUNC(data);
 	new_vec->emplace_indx = VECTOR_FUNC(emplace_indx);
 	new_vec->emplace_it = VECTOR_FUNC(emplace_it);
+	new_vec->emplace_range_indx = VECTOR_FUNC(emplace_range_indx);
+	new_vec->emplace_range_it = VECTOR_FUNC(emplace_range_it);
 	new_vec->empty = VECTOR_FUNC(empty);
 	new_vec->end = VECTOR_FUNC(end);
 	new_vec->erase_indx = VECTOR_FUNC(erase_indx);
@@ -512,8 +539,8 @@ VECTOR *VECTOR_FUNC(copy_create_vector)(
     }
 
 	const T *data __attribute__((unused)) = (T *)memcpy(
-		PRIVATE(new_vec)->__data,
-		PRIVATE(other)->__data,
+		VECTOR_DATA(new_vec),
+		VECTOR_DATA(other),
 		PRIVATE(other)->__size * sizeof(T)
 	);
 	VECTOR_CHECK_DATA(data, error, NULL)
@@ -530,6 +557,8 @@ VECTOR *VECTOR_FUNC(copy_create_vector)(
 	new_vec->data = other->data;
 	new_vec->emplace_indx = other->emplace_indx;
 	new_vec->emplace_it = other->emplace_it;
+	new_vec->emplace_range_indx = other->emplace_range_indx;
+	new_vec->emplace_range_it = other->emplace_range_it;
 	new_vec->empty = other->empty;
 	new_vec->end = other->end;
 	new_vec->erase_indx = other->erase_indx;
@@ -555,7 +584,6 @@ VECTOR *VECTOR_FUNC(copy_create_vector)(
 	new_vec->size = other->size;
 	new_vec->swap_indx = other->swap_indx;
 	new_vec->swap_it = other->swap_it;
-
 #ifdef VECTOR_USE_CUSTOM_ALLOCATOR
 	new_vec->allocator = other->allocator;
 	new_vec->set_allocator = other->set_allocator;
@@ -599,6 +627,8 @@ VECTOR *VECTOR_FUNC(move_create_vector)(
 	new_vec->end = other_vec->end;
 	new_vec->erase_indx = other_vec->erase_indx;
 	new_vec->erase_it = other_vec->erase_it;
+	new_vec->emplace_range_indx = other->emplace_range_indx;
+	new_vec->emplace_range_it = other->emplace_range_it;
 	new_vec->find_first_not_of = other_vec->find_first_not_of;
 	new_vec->find_last_not_of = other_vec->find_last_not_of;
 	new_vec->find_first_of = other_vec->find_first_of;
@@ -620,7 +650,6 @@ VECTOR *VECTOR_FUNC(move_create_vector)(
 	new_vec->size = other_vec->size;
 	new_vec->swap_indx = other_vec->swap_indx;
 	new_vec->swap_it = other_vec->swap_it;
-
 #ifdef VECTOR_USE_CUSTOM_ALLOCATOR
 	new_vec->allocator = other_vec->allocator;
 	new_vec->set_allocator = other_vec->set_allocator;
@@ -644,21 +673,8 @@ void VECTOR_FUNC(destroy_vector)(VECTOR **self)
     VECTOR *vec = *self;
     if (vec == NULL)
 		return;
-
-#ifdef VECTOR_USE_CUSTOM_ALLOCATOR
-    vector_allocator_t *alloc = PRIVATE(vec)->__allocator;
-	if (alloc == NULL)
-		return;
-
-    if (PRIVATE(vec)->__data != NULL)
-    	alloc->free(PRIVATE(vec)->__data);
-
-    if (PRIVATE(vec) != NULL)
-    	alloc->free(PRIVATE(vec));
-
-    alloc->free(vec);
-
-#else // VECTOR_USE_CUSTOM_ALLOCATOR
+	
+	VECTOR_CHECK_ALLOC(PRIVATE(vec)->__allocator, error, )
 
     if (PRIVATE(vec)->__data != NULL)
     	VECTOR_FREE(vec, PRIVATE(vec)->__data);
@@ -667,7 +683,6 @@ void VECTOR_FUNC(destroy_vector)(VECTOR **self)
     	VECTOR_FREE(vec, PRIVATE(vec));
 
     VECTOR_FREE(vec, vec);
-#endif // VECTOR_USE_CUSTOM_ALLOCATOR
 
     vec = NULL;
 }
@@ -693,13 +708,13 @@ static VECTOR_INLINE bool VECTOR_FUNC(ensure_capacity)(
 
     const T *new_data = (T *)VECTOR_REALLOC(
 		vec,
-    	PRIVATE(vec)->__data,
+    	VECTOR_BEGIN(vec),
 		new_capacity * sizeof(T)
     );
 
     VECTOR_CHECK_ALLOC(new_data, error, false)
 
-    PRIVATE(vec)->__data = (T *)new_data;
+    VECTOR_BEGIN(vec) = new_data;
     PRIVATE(vec)->__allocated_size = new_capacity;
 
 	if (error != NULL)
@@ -733,8 +748,10 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(assign)(
 {
 	VECTOR_CHECK_ENSURE_CAPACITY(self, count, error, )
 	
-	for (vector_size_t i = 0; i < count; ++i)
-		PRIVATE(*self)->__data[i] = value;
+	VECTOR *vec = *self;
+	
+	for (vector_index_t i = 0; i < (vector_index_t)count; ++i)
+		VECTOR_DATA(vec, i) = value;
 
 	if (error != NULL)
 		(*error) = VECTOR_ERROR_SUCCESS;
@@ -751,8 +768,10 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(assign_range)(
 	VECTOR_CHECK_INPUT_RANGE(range, error, )
 	VECTOR_CHECK_ENSURE_CAPACITY(self, range_size, error, )
 	
-	for (vector_size_t i = 0; i < range_size; ++i)
-		PRIVATE(*self)->__data[i] = PRIVATE(range)->__data[i];
+	VECTOR *vec = *self;
+	
+	for (vector_index_t i = 0; i < (vector_index_t)range_size; ++i)
+		VECTOR_DATA(vec, i) = VECTOR_DATA(range, i);
 
 	if (error != NULL)
 		(*error) = VECTOR_ERROR_SUCCESS;
@@ -760,7 +779,7 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(assign_range)(
 
 VECTOR_STATIC VECTOR_INLINE T VECTOR_FUNC(at)(
 	const VECTOR **self,
-	vector_size_t index,
+	vector_index_t index,
 	vector_error_t *error
 )
 {
@@ -769,19 +788,19 @@ VECTOR_STATIC VECTOR_INLINE T VECTOR_FUNC(at)(
 	if (error != NULL)
 		(*error) = VECTOR_ERROR_SUCCESS;
 
-    return PRIVATE(*self)->__data[index];
+    return VECTOR_DATA(*self, index);
 }
 
 VECTOR_STATIC VECTOR_INLINE T VECTOR_FUNC(back)(const VECTOR **self)
 {
 	const VECTOR *vec = *self;
 
-    return PRIVATE(vec)->__data[PRIVATE(vec)->__size - 1];
+    return VECTOR_DATA(vec, PRIVATE(vec)->__size - 1);
 }
 
 VECTOR_STATIC VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(begin)(const VECTOR **self)
 {
-    return PRIVATE(*self)->__data;
+    return VECTOR_BEGIN(*self);
 }
 
 VECTOR_STATIC VECTOR_INLINE vector_size_t VECTOR_FUNC(capacity)(const VECTOR **self)
@@ -796,19 +815,19 @@ VECTOR_STATIC VECTOR_INLINE  void VECTOR_FUNC(clear)(VECTOR **const self)
 
 VECTOR_STATIC VECTOR_INLINE T *VECTOR_FUNC(data)(const VECTOR **self)
 {
-    return PRIVATE(*self)->__data;
+    return VECTOR_BEGIN(*self);
 }
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(emplace_indx)(
 	VECTOR **self,
-	vector_size_t index,
+	vector_index_t index,
 	T value,
 	vector_error_t *error
 )
 {
 	VECTOR_CHECK_INDEX((const VECTOR **)self, index, error, )
 
-    PRIVATE(*self)->__data[index] = value;
+    VECTOR_DATA(*self, index) = value;
 
 	if (error != NULL)
 		(*error) = VECTOR_ERROR_SUCCESS;
@@ -829,6 +848,49 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(emplace_it)(
 	);
 }
 
+VECTOR_STATIC VECTOR_INLINE void FUNC(emplace_range_indx)(
+	VECTOR **self, 
+	vector_index_t index, 
+	const VECTOR *range,
+    vector_error_t *error
+)
+{
+	VECTOR_CHECK_INDEX((const VECTOR **)self, index, error, )
+	VECTOR_CHECK_INDEX(
+		(const VECTOR **)self, 
+		index + PRIVATE(range)->__size, 
+		error, 
+	)
+	
+	VECTOR *vec = *self;
+	
+	for (
+		vector_index_t i = index; 
+		i < (vector_index_t)(index + PRIVATE(range)->__size); 
+		++i
+	)
+	{
+		VECTOR_DATA(vec, i) = VECTOR_DATA(range, i);
+	}
+	
+	if (error != NULL)
+		(*error) = VECTOR_ERROR_SUCCESS;
+}
+
+VECTOR_STATIC VECTOR_INLINE void FUNC(emplace_range_it)(
+	VECTOR **self, 
+	ITERATOR it, 
+	const VECTOR *range,
+    vector_error_t *error
+)
+{
+	(*self)->emplace_range_indx(
+		self,
+		(*self)->index(self, it),
+		range
+	);
+}
+
 VECTOR_STATIC VECTOR_INLINE bool VECTOR_FUNC(empty)(const VECTOR **self)
 {
     return (PRIVATE(*self)->__size == 0);
@@ -838,12 +900,12 @@ VECTOR_STATIC VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(end)(const VECTOR **self
 {
 	const VECTOR *vec = *self;
 
-    return PRIVATE(vec)->__data + PRIVATE(vec)->__size;
+    return VECTOR_BEGIN(vec) + PRIVATE(vec)->__size;
 }
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(erase_indx)(
 	VECTOR **self,
-	vector_size_t index,
+	vector_index_t index,
 	vector_error_t *error
 )
 {
@@ -859,8 +921,8 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(erase_indx)(
     }
     
     const T *data __attribute__((unused)) = (T *)memmove(
-		PRIVATE(vec)->__data + index,
-        PRIVATE(vec)->__data + index + 1,
+		VECTOR_BEGIN(vec) + index,
+        VECTOR_BEGIN(vec) + index + 1,
         (PRIVATE(vec)->__size - index - 1) * sizeof(T)
 	);
     VECTOR_CHECK_DATA(data, error, )
@@ -892,9 +954,9 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_first_not_of)(
     if (VECTOR_FUNC(empty)(self))
     	return VECTOR_INVALID_INDEX;
 
-    for (vector_size_t i = 0; i < PRIVATE(*self)->__size; ++i)
-        if (VECTOR_FUNC(at)(self, i, NULL) != value)
-            return (vector_index_t)i;
+    for (vector_index_t i = 0; i < (vector_index_t)PRIVATE(*self)->__size; ++i)
+        if (VECTOR_DATA(self, i) != value)
+            return i;
 
     return VECTOR_INVALID_INDEX;
 }
@@ -907,8 +969,8 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_last_not_of)(
     if (VECTOR_FUNC(empty)(self))
     	return VECTOR_INVALID_INDEX;
 
-    for (vector_index_t i = PRIVATE(*self)->__size - 1; i >= 0; --i)
-        if (VECTOR_FUNC(at)(self, i, NULL) != value)
+    for (vector_index_t i = (vector_index_t)PRIVATE(*self)->__size - 1; i >= 0; --i)
+        if (VECTOR_DATA(self, i) != value)
             return i;
 
     return VECTOR_INVALID_INDEX;
@@ -922,9 +984,9 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_first_of)(
     if (VECTOR_FUNC(empty)(self))
     	return VECTOR_INVALID_INDEX;
 
-    for (vector_size_t i = 0; i < PRIVATE(*self)->__size; ++i)
-        if (VECTOR_FUNC(at)(self, i, NULL) == value)
-            return (vector_index_t)i;
+    for (vector_index_t i = 0; i < (vector_index_t)PRIVATE(*self)->__size; ++i)
+        if (VECTOR_DATA(self, i) == value)
+            return i;
 
     return VECTOR_INVALID_INDEX;
 }
@@ -937,8 +999,8 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_last_of)(
     if (VECTOR_FUNC(empty)(self))
     	return VECTOR_INVALID_INDEX;
 
-	for (vector_index_t i = PRIVATE(*self)->__size - 1; i >= 0; --i)
-        if (VECTOR_FUNC(at)(self, i, NULL) == value)
+	for (vector_index_t i = (vector_index_t)PRIVATE(*self)->__size - 1; i >= 0; --i)
+        if (VECTOR_DATA(self, i) == value)
             return i;
 
     return VECTOR_INVALID_INDEX;
@@ -946,7 +1008,7 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(find_last_of)(
 
 VECTOR_STATIC VECTOR_INLINE T VECTOR_FUNC(front)(const VECTOR **self)
 {
-    return PRIVATE(*self)->__data[0];
+    return VECTOR_DATA(*self, 0);
 }
 
 VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(indx)(
@@ -956,7 +1018,7 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(indx)(
 )
 {
 	const vector_index_t index =
-		(vector_index_t)(it - PRIVATE(*self)->__data);
+		(vector_index_t)(it - VECTOR_BEGIN(*self));
 
 	VECTOR_CHECK_INDEX(self, index, error, VECTOR_INVALID_INDEX)
 
@@ -968,7 +1030,7 @@ VECTOR_STATIC VECTOR_INLINE vector_index_t VECTOR_FUNC(indx)(
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(insert_indx)(
 	VECTOR **self,
-	vector_size_t before,
+	vector_index_t before,
 	T value,
 	vector_error_t *error
 )
@@ -987,14 +1049,14 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(insert_indx)(
 	VECTOR_CHECK_ENSURE_CAPACITY(self, PRIVATE(vec)->__size + 1, error, )
     
     const T *data __attribute__((unused)) = (T *)memmove(
-		PRIVATE(vec)->__data + before + 1,
-        PRIVATE(vec)->__data + before,
+		VECTOR_BEGIN(vec) + before + 1,
+        VECTOR_BEGIN(vec) + before,
         (PRIVATE(vec)->__size - before) * sizeof(T)
 	);
 
 	VECTOR_CHECK_DATA(data, error, )
     
-    PRIVATE(vec)->__data[before] = value;
+    VECTOR_DATA(vec, before) = value;
     ++PRIVATE(vec)->__size;
 
     if (error != NULL)
@@ -1018,7 +1080,7 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(insert_it)(
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(insert_range_indx)(
 	VECTOR **self,
-	vector_size_t before,
+	vector_index_t before,
 	const VECTOR *range,
 	vector_error_t *error
 )
@@ -1043,20 +1105,16 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(insert_range_indx)(
     if (before < PRIVATE(vec)->__size)
     {
         const T *data __attribute__((unused)) = (T *)memmove(
-			PRIVATE(vec)->__data + before + range_size,
-            PRIVATE(vec)->__data + before,
+			VECTOR_BEGIN(vec) + before + range_size,
+            VECTOR_BEGIN(vec) + before,
             (PRIVATE(vec)->__size - before) * sizeof(T)
 		);
 
         VECTOR_CHECK_DATA(data, error, )
     }
     
-    for (vector_size_t i = 0; i < range_size; ++i)
-        PRIVATE(vec)->__data[before + i] = VECTOR_FUNC(at)(
-        	range_ptr,
-			i,
-			error
-		);
+    for (vector_index_t i = 0; i < (vector_index_t)range_size; ++i)
+        VECTOR_DATA(vec, before + i) = VECTOR_DATA(vec, i);
     
     PRIVATE(vec)->__size += range_size;
 
@@ -1081,7 +1139,7 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(insert_range_it)(
 
 VECTOR_STATIC VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(it)(
 	const VECTOR **self,
-	vector_size_t index,
+	vector_index_t index,
 	vector_error_t *error
 )
 {
@@ -1090,7 +1148,7 @@ VECTOR_STATIC VECTOR_INLINE VECTOR_ITERATOR VECTOR_FUNC(it)(
 	if (error != NULL)
 		*error = VECTOR_ERROR_SUCCESS;
 	
-	return PRIVATE(*self)->__data + index;
+	return VECTOR_BEGIN(*self) + index;
 }
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(pop_back)(VECTOR **self)
@@ -1111,7 +1169,7 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(push_back)(
 
 	VECTOR_CHECK_ENSURE_CAPACITY(self, PRIVATE(vec)->__size + 1, error, )
     
-    PRIVATE(vec)->__data[PRIVATE(vec)->__size] = value;
+    VECTOR_DATA(vec, PRIVATE(vec)->__size) = value;
     ++PRIVATE(vec)->__size;
     
 	if (error != NULL)
@@ -1147,8 +1205,14 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(resize_with)(
 
 	VECTOR_CHECK_ENSURE_CAPACITY(self, new_size, error, )
 	
-	for (vector_size_t i = PRIVATE(vec)->__size; i < new_size; ++i)
-		PRIVATE(vec)->__data[i] = value;
+	for (
+		vector_index_t i = (vector_index_t)PRIVATE(vec)->__size; 
+		i < (vector_index_t)new_size; 
+		++i
+	)
+	{
+		VECTOR_DATA(vec, i) = value;
+	}
 	
 	PRIVATE(vec)->__size = new_size;
 
@@ -1158,26 +1222,37 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(resize_with)(
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(reverse_indx)(
 	VECTOR **self,
-	vector_size_t begin_index,
-	vector_size_t end_index,
+	vector_index_t begin_index,
+	vector_index_t end_index,
 	vector_error_t *error
 )
 {
+	if (begin_index == end_index)
+	{
+		if (error != NULL)
+			*error = VECTOR_ERROR_SUCCESS;
+		
+		return;
+	}
+	
 	if (VECTOR_FUNC(empty)((const VECTOR **)self))
 		return;
 
 	VECTOR_CHECK_INDEX((const VECTOR **)self, begin_index, error, )
 	VECTOR_CHECK_INDEX((const VECTOR **)self, end_index, error, )
-
-	const vector_size_t half_index =
-		begin_index + ((end_index - begin_index) >> 1);
-	for (vector_size_t i = begin_index; i < half_index; ++i)
-		VECTOR_FUNC(swap_indx)(
-			self,
-			i,
-			begin_index + end_index - 1 - i,
-			NULL
-		);
+	
+	VECTOR *vec = *self;
+	T temp = (T)0;
+	
+	while (begin_index < end_index)
+	{
+		temp = VECTOR_DATA(vec, begin_index);
+		VECTOR_DATA(vec, begin_index) = VECTOR_DATA(vec, end_index);
+		VECTOR_DATA(vec, end_index) = temp;
+		
+		++begin_index;
+		--end_index;
+	}
 
 	if (error != NULL)
 		*error = VECTOR_ERROR_SUCCESS;
@@ -1205,22 +1280,27 @@ VECTOR_STATIC VECTOR_INLINE vector_size_t VECTOR_FUNC(size)(const VECTOR **self)
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(swap_indx)(
 	VECTOR **self,
-	vector_size_t index_a,
-	vector_size_t index_b,
+	vector_index_t index_a,
+	vector_index_t index_b,
 	vector_error_t *error
 )
 {
+	if (index_a == index_b)
+	{
+		if (error != NULL)
+			*error = VECTOR_ERROR_SUCCESS;
+		
+		return;
+	}
+	
 	VECTOR_CHECK_INDEX((const VECTOR **)self, index_a, error, )
 	VECTOR_CHECK_INDEX((const VECTOR **)self, index_b, error, )
 
 	VECTOR *vec = *self;
 	
-	if (index_a == index_b)
-		return;
-	
-    const T temp = PRIVATE(vec)->__data[index_a];
-    PRIVATE(vec)->__data[index_a] = PRIVATE(vec)->__data[index_b];
-    PRIVATE(vec)->__data[index_b] = temp;
+    const T temp = VECTOR_DATA(vec, index_a);
+    VECTOR_DATA(vec, index_a) = VECTOR_DATA(vec, index_b);
+    VECTOR_DATA(vec, index_b) = temp;
 
 	if (error != NULL)
 		*error = VECTOR_ERROR_SUCCESS;
@@ -1242,13 +1322,18 @@ VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(swap_it)(
 }
 
 #ifdef VECTOR_USE_CUSTOM_ALLOCATOR
-VECTOR_STATIC VECTOR_INLINE const vector_allocator_t *VECTOR_FUNC(allocator)(const VECTOR **self)
+VECTOR_STATIC VECTOR_INLINE vector_allocator_t *VECTOR_FUNC(allocator)(
+	const VECTOR **,
+	vector_error_t *
+)
 {
-	return (const vector_allocator_t *)PRIVATE(*self)->__allocator;
+	VECTOR_CHECK_ALLOC(PRIVATE(*self)->__allocator, error, NULL)
+	
+	return PRIVATE(*self)->__allocator;
 }
 
 VECTOR_STATIC VECTOR_INLINE void VECTOR_FUNC(set_allocator)(
-	const VECTOR **self,
+	VECTOR **self,
 	vector_allocator_t *alloc,
 	vector_error_t error*
 )
